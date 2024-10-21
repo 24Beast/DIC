@@ -5,24 +5,15 @@ import torch
 import numpy as np
 import torch.optim as optim
 from typing import Callable, Union, Literal
-
-
-# Helper Functions
-BCE_loss_instance = torch.nn.BCELoss()
-
-
-def ModifiedBCELoss(y_pred, y):
-    return 1 / BCE_loss_instance(y_pred, y)
+from utils.losses import ModifiedBCELoss
 
 
 # Main class
-class DLA:
+class DPIC:
     def __init__(
         self,
         model_params: dict,
         train_params: dict,
-        A_accuracy: float,
-        T_accuracy: float,
         eval_metric: Union[Callable, str] = "mse",
         threshold=True,
     ) -> None:
@@ -64,13 +55,11 @@ class DLA:
         self.train_params = train_params
         self.model_attacker_trained = False
         self.threshold = threshold
-        self.A_acc = A_accuracy
-        self.T_acc = T_accuracy
 
         self.loss_functions = {
             "mse": torch.nn.MSELoss(),
             "cross-entropy": torch.nn.CrossEntropyLoss(),
-            "bce": torch.nn.BCELoss(),
+            "bce": torch.nn.BCELoss,
         }
         self.eval_functions = {
             "accuracy": lambda y_pred, y: (y_pred == y).float().mean(),
@@ -276,72 +265,4 @@ class DLA:
 
 
 if __name__ == "__main__":
-    # Test case
-    from attackerModels.ANN import simpleDenseModel
-
-    # Data Initialization
-    from utils.datacreator import dataCreator
-
-    P, D, D2, M1, M2 = dataCreator(16384, 0.2, False, 0.05)
-    P = torch.tensor(P, dtype=torch.float).reshape(-1, 1)
-    D = torch.tensor(D, dtype=torch.float).reshape(-1, 1)
-    D2 = torch.tensor(D2, dtype=torch.float).reshape(-1, 1)
-    M1 = torch.tensor(M1, dtype=torch.float).reshape(-1, 1)
-    M2 = torch.tensor(M2, dtype=torch.float).reshape(-1, 1)
-
-    # Calculating Params
-    model_1_acc = torch.sum(D == M1) / D.shape[0]
-    model_2_acc = torch.sum(D == M2) / D.shape[0]
-
-    # Parameter Initialization
-
-    # Attacker Model Initialization
-    attackerModel = simpleDenseModel(
-        1, 1, 1, numFirst=1, activations=["sigmoid", "sigmoid", "sigmoid"]
-    )
-
-    # Parameter Initialization
-    leakage_1 = DLA(
-        {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
-        {
-            "learning_rate": 0.05,
-            "loss_function": "bce",
-            "epochs": 100,
-            "batch_size": 64,
-        },
-        model_1_acc,
-        model_1_acc,
-        "accuracy",
-        threshold=True,
-    )
-
-    leakage_2 = DLA(
-        {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
-        {
-            "learning_rate": 0.05,
-            "loss_function": "bce",
-            "epochs": 100,
-            "batch_size": 64,
-        },
-        model_2_acc,
-        model_2_acc,
-        "accuracy",
-        threshold=True,
-    )
-
-    leak_1 = leakage_1.getAmortizedLeakage(P, D, M1, "AtoT")
-    print(f"leakage for case 1: {leak_1}")
-    print("______________________________________")
-    print("______________________________________")
-    leak_2 = leakage_2.getAmortizedLeakage(P, D, M2, "AtoT")
-    print(f"leakage for case 2: {leak_2}")
-    print("______________________________________")
-    print("______________________________________")
-    leak_3 = leakage_2.getAmortizedLeakage(P, D2, M1, "AtoT")
-    print(f"leakage for case 3: {leak_3}")
-    print("______________________________________")
-    print("______________________________________")
-    leak_4 = leakage_2.getAmortizedLeakage(P, D2, M2, "AtoT")
-    print(f"leakage for case 4: {leak_4}")
-    print("______________________________________")
-    print("______________________________________")
+    pass

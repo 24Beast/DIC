@@ -3,22 +3,37 @@ import torch
 import torch.nn as nn
 from attackerModels.ANN import simpleDenseModel
 
+
 # Define the LSTM + ANN model
 class LSTM_ANN_Model(nn.Module):
-    def __init__(self, lstm_input_size, lstm_hidden_size, lstm_num_layers, lstm_bidirectional, ann_input_size, ann_output_size, num_ann_layers, ann_numFirst):
+    def __init__(
+        self,
+        lstm_input_size,
+        lstm_hidden_size,
+        lstm_num_layers,
+        lstm_bidirectional,
+        ann_input_size,
+        ann_output_size,
+        num_ann_layers,
+        ann_numFirst,
+    ):
         super(LSTM_ANN_Model, self).__init__()
 
         # LSTM layer
-        self.lstm = nn.LSTM(input_size=lstm_input_size,
-                            hidden_size=lstm_hidden_size,
-                            num_layers=lstm_num_layers,
-                            bidirectional=lstm_bidirectional,
-                            batch_first=True)
+        self.lstm = nn.LSTM(
+            input_size=lstm_input_size,
+            hidden_size=lstm_hidden_size,
+            num_layers=lstm_num_layers,
+            bidirectional=lstm_bidirectional,
+            batch_first=True,
+        )
 
-        self.ann = simpleDenseModel(input_dims=ann_input_size,
-                                    output_dims=ann_output_size,
-                                    num_layers=num_ann_layers,
-                                    numFirst=ann_numFirst)
+        self.ann = simpleDenseModel(
+            input_dims=ann_input_size,
+            output_dims=ann_output_size,
+            num_layers=num_ann_layers,
+            numFirst=ann_numFirst,
+        )
 
         self.output_layer = nn.Linear(ann_output_size, 3)
 
@@ -32,6 +47,7 @@ class LSTM_ANN_Model(nn.Module):
         output = torch.softmax(output, dim=-1)
         return output
 
+
 if __name__ == "__main__":
 
     lstm_input_size = 100
@@ -44,7 +60,16 @@ if __name__ == "__main__":
     num_ann_layers = 3
     ann_numFirst = 32
 
-    model = LSTM_ANN_Model(lstm_input_size, lstm_hidden_size, lstm_num_layers, lstm_bidirectional, ann_input_size, ann_output_size, num_ann_layers, ann_numFirst)
+    model = LSTM_ANN_Model(
+        lstm_input_size,
+        lstm_hidden_size,
+        lstm_num_layers,
+        lstm_bidirectional,
+        ann_input_size,
+        ann_output_size,
+        num_ann_layers,
+        ann_numFirst,
+    )
     input_data = torch.randn(10, 50, lstm_input_size)
     output = model(input_data)
 

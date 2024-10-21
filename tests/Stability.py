@@ -17,12 +17,12 @@ if __name__ == "__main__":
     from utils.datacreator import StabilityExp
 
     NUM_SAMPLES = 16384
-    ATTACKER_WIDTHS = [i for i in range(1,16)]
+    ATTACKER_WIDTHS = [i for i in range(1, 16)]
     TRAIN_PARAMS = {
-      "learning_rate": 0.05,
-      "loss_function": "mse",
-      "epochs": 100,
-      "batch_size": 64,
+        "learning_rate": 0.05,
+        "loss_function": "mse",
+        "epochs": 100,
+        "batch_size": 64,
     }
 
     P, D, M = StabilityExp(NUM_SAMPLES)
@@ -38,21 +38,21 @@ if __name__ == "__main__":
     for num, width in enumerate(ATTACKER_WIDTHS):
         # Attacker Model Initialization
         attackerModel = simpleDenseModel(
-            1, width, 1, numFirst=1, activations=["relu","relu","relu"]
+            1, width, 1, numFirst=1, activations=["relu", "relu", "relu"]
         )
-    
+
         # Parameter Initialization
         dla = DLA(
-            {"attacker_AtoT" : attackerModel, "attacker_TtoA" : attackerModel},
+            {"attacker_AtoT": attackerModel, "attacker_TtoA": attackerModel},
             TRAIN_PARAMS,
-            A_accuracy = model_mse,
-            T_accuracy = model_mse,
-            eval_metric = "mse",
+            A_accuracy=model_mse,
+            T_accuracy=model_mse,
+            eval_metric="mse",
             threshold=False,
-            A_model_eq = "noise",
-            T_model_eq = "noise",
+            A_model_eq="noise",
+            T_model_eq="noise",
         )
-    
+
         dla_val = dla.getAmortizedLeakage(P, D, M)
         print(f"leakage for case {num+1} ({width=}): {dla}")
         print("______________________________________")
