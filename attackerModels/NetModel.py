@@ -8,7 +8,9 @@ from attackerModels.ANN import simpleDenseModel
 class LSTM_ANN_Model(nn.Module):
     def __init__(
         self,
-        lstm_input_size,
+        vocab_size,
+        embedding_dim,
+        pad_idx,
         lstm_hidden_size,
         lstm_num_layers,
         lstm_bidirectional,
@@ -19,15 +21,19 @@ class LSTM_ANN_Model(nn.Module):
     ):
         super(LSTM_ANN_Model, self).__init__()
 
+        # Embedding layer
+        self.embed = nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_idx)
+
         # LSTM layer
         self.lstm = nn.LSTM(
-            input_size=lstm_input_size,
+            input_size=embedding_dim,
             hidden_size=lstm_hidden_size,
             num_layers=lstm_num_layers,
             bidirectional=lstm_bidirectional,
             batch_first=True,
         )
 
+        # ANN layer
         self.ann = simpleDenseModel(
             input_dims=ann_input_size,
             output_dims=ann_output_size,
@@ -38,6 +44,7 @@ class LSTM_ANN_Model(nn.Module):
         self.output_layer = nn.Linear(ann_output_size, 3)
 
     def forward(self, x):
+        x = self.embed(x)
         lstm_out, _ = self.lstm(x)
         lstm_out = lstm_out[:, -1, :]
 
@@ -50,7 +57,10 @@ class LSTM_ANN_Model(nn.Module):
 
 if __name__ == "__main__":
 
-    lstm_input_size = 100
+    vocab_size = 100
+    embedding_dim = 100
+    pad_idx = 0
+
     lstm_hidden_size = 128
     lstm_num_layers = 2
     lstm_bidirectional = True
@@ -61,7 +71,9 @@ if __name__ == "__main__":
     ann_numFirst = 32
 
     model = LSTM_ANN_Model(
-        lstm_input_size,
+        vocab_size,
+        embedding_dim,
+        pad_idx,
         lstm_hidden_size,
         lstm_num_layers,
         lstm_bidirectional,
@@ -70,7 +82,7 @@ if __name__ == "__main__":
         num_ann_layers,
         ann_numFirst,
     )
-    input_data = torch.randn(10, 50, lstm_input_size)
+    input_data = torch.randn(10, 50, embedding_dim)
     output = model(input_data)
 
     print("Predicted probabilities:", output)
