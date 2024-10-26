@@ -11,7 +11,7 @@ from utils.text import CaptionProcessor
 
 
 # Main class
-class DPIC:
+class LIC:
     def __init__(
         self,
         model_params: dict,
@@ -75,6 +75,7 @@ class DPIC:
         feat: torch.tensor,
         data: torch.tensor,
         pred: torch.tensor,
+        normalized: bool = False,
     ) -> torch.tensor:
         """
         Parameters
@@ -85,8 +86,6 @@ class DPIC:
             Ground truth data.
         pred : torch.tensor
             Predicted Values.
-        mode : Literal["AtoT","TtoA"]
-            Sets Direction of calculation.
 
         Returns
         -------
@@ -102,6 +101,8 @@ class DPIC:
         lambda_m = self.calcLambda(getattr(self, "attacker_M"), feat, pred)
         print(f"{lambda_d=},\n{lambda_m=}")
         leakage_amp = lambda_m - lambda_d
+        if normalized:
+            leakage_amp = leakage_amp / (lambda_m + lambda_d)
         return leakage_amp
 
     def train(
@@ -180,6 +181,8 @@ class DPIC:
     def captionPreprocess(
         self, model_captions: pd.Series, human_captions: pd.Series
     ) -> tuple(torch.tensor, torch.tensor):
+        model_captions = self.capProcessor.maskWords(model_captions, mode="gender")
+        human_captions = self.capProcessor.maskWords(human_captions, mode="gender")
         model_captions, human_captions = self.capProcessor.equalize_vocab(
             model_captions, human_captions
         )
@@ -191,12 +194,12 @@ class DPIC:
 
     def getAmortizedLeakage(
         self,
-        feat: torch.tensor,
-        data: pd.Series,
-        pred: pd.Series,
+        feat: torch.tensor,  # Attribute
+        data: pd.Series,  # Human Captions (straight from datacreator)
+        pred: pd.Series,  # Model Captions (straight from datacreator)
         num_trials: int = 10,
         method: str = "mean",
-        normalized: bool = True,
+        normalized: bool = False,
     ) -> tuple[torch.tensor, torch.tensor]:
         pred, data = self.captionPreprocess(pred, data)
         vals = torch.zeros(num_trials)

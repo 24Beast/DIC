@@ -18,8 +18,8 @@ class CaptionProcessor:
         gender_token="<gender>",
         obj_token="<obj>",
         stopwords=[".", ",", " "],
-        tokenizer="spacy",
-        lang="en_core_web_sm",
+        tokenizer="basic_english",
+        lang="en",
     ) -> None:
         self.tokenizer = get_tokenizer(tokenizer, lang)
         self.stopwords = stopwords
@@ -67,26 +67,19 @@ class CaptionProcessor:
         )
         return padded_text
 
-    def replaceWords(
-        self, token_list: list[str], mode: Literal["gender", "object"] = "gender"
-    ) -> list[str]:
+    def maskWords(
+        self,
+        token_list: Union[list[str], pd.Series],
+        mode: Literal["gender", "object"] = "gender",
+    ) -> Union[list[str], pd.Series]:
         if mode == "gender":
-            return [
-                token if not (token in self.gender_words) else self.gender_token
-                for token in token_list
-            ]
+            pass
         elif mode == "object":
-            return [
-                token if not (token in self.object_words) else self.object_token
-                for token in token_list
-            ]
+            pass
         else:
             raise ValueError("Expected only 'gender' or 'object' for mode")
 
     def equalize_vocab(self, model_captions, human_captions):
-        human_vocab = self.build_vocab(human_captions)
-        model_vocab = self.build_vocab(model_captions)
-
         pass
 
 
@@ -104,7 +97,9 @@ if __name__ == "__main__":
     data_obj = CaptionGenderDataset(HUMAN_ANN_PATH, MODEL_ANN_PATH)
     human_ann, model_ann = data_obj.getData()
 
-    processor = CaptionProcessor(GENDER_WORDS, OBJ_WORDS)
+    processor = CaptionProcessor(
+        GENDER_WORDS, OBJ_WORDS, tokenizer="spacy", lang="en_core_web_sm"
+    )
 
     vocab_human = processor.build_vocab(human_ann.caption)
     vocab_model = processor.build_vocab(model_ann.caption)
