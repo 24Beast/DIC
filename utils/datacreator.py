@@ -6,6 +6,7 @@ import pandas as pd
 from typing import Union
 from sklearn.preprocessing import MultiLabelBinarizer
 
+
 # Type Hints
 pathType = Union[str, os.PathLike]
 
@@ -59,16 +60,15 @@ class CaptionGenderDataset:
         self.attribute_data = pd.DataFrame(self.attribute_data)
         objs = self.mlb.fit_transform(self.attribute_data["objects"])
         self.attribute_data[self.mlb.classes_] = objs
+        self.attribute_data.drop("objects", axis=1, inplace=True)
+        self.attribute_data["gender"] = (
+            1 * self.attribute_data["gender"] == "Male"
+        )  # 1 represents Male
 
     def getData(self) -> list[pd.DataFrame]:
         return self.human_ann.merge(self.attribute_data), self.model_ann.merge(
             self.attribute_data
         )
-
-
-"""
-Note: Use MultiLabelBinarizer to convert objects in attribute_data
-"""
 
 
 if __name__ == "__main__":

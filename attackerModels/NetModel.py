@@ -54,6 +54,9 @@ class LSTM_ANN_Model(nn.Module):
         output = torch.softmax(output, dim=-1)
         return output
 
+    def count_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
 
 if __name__ == "__main__":
 
@@ -82,7 +85,7 @@ if __name__ == "__main__":
         num_ann_layers,
         ann_numFirst,
     )
-    input_data = torch.randn(10, 50, embedding_dim)
+    input_data = torch.randint(0, vocab_size, (1, 1000))
     output = model(input_data)
 
     print("Predicted probabilities:", output)

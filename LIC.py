@@ -3,9 +3,11 @@ import copy
 import math
 import torch
 import numpy as np
+import pandas as pd
 import torch.optim as optim
 from typing import Callable, Union, Literal
 from utils.losses import ModifiedBCELoss
+from utils.text import CaptionProcessor
 
 
 # Main class
@@ -14,6 +16,10 @@ class DPIC:
         self,
         model_params: dict,
         train_params: dict,
+        gender_words: list[str],
+        obj_words: list[str],
+        gender_token: str,
+        obj_token: str,
         eval_metric: Union[Callable, str] = "mse",
         threshold=True,
     ) -> None:
@@ -60,6 +66,9 @@ class DPIC:
         }
         self.initEvalMetric(eval_metric)
         self.defineModel()
+        self.capProcessor = CaptionProcessor(
+            gender_words, obj_words, gender_token=gender_token, obj_token=obj_token
+        )
 
     def calcLeak(
         self,
@@ -168,20 +177,32 @@ class DPIC:
         else:
             raise ValueError("Invalid Metric Given.")
 
+    def captionPreprocess(
+        self, model_captions: pd.Series, human_captions: pd.Series
+    ) -> tuple(torch.tensor, torch.tensor):
+        model_captions, human_captions = self.capProcessor.equalize_vocab(
+            model_captions, human_captions
+        )
+        model_vocab = self.capProcessor.build_vocab(model_captions)
+        human_vocab = self.capProcessor.build_vocab(human_captions)
+        model_cap = self.capProcessor.tokens_to_numbers(model_vocab, model_captions)
+        human_cap = self.capProcessor.tokens_to_numbers(human_vocab, human_captions)
+        return model_cap, human_cap
+
     def getAmortizedLeakage(
         self,
         feat: torch.tensor,
-        data: torch.tensor,
-        pred: torch.tensor,
-        mode: Literal["AtoT", "TtoA"],
+        data: pd.Series,
+        pred: pd.Series,
         num_trials: int = 10,
         method: str = "mean",
         normalized: bool = True,
     ) -> tuple[torch.tensor, torch.tensor]:
+        pred, data = self.captionPreprocess(pred, data)
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
-            vals[i] = self.calcLeak(feat, data, pred, mode, normalized)
+            vals[i] = self.calcLeak(feat, data, pred, normalized)
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return {
