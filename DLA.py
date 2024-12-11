@@ -204,7 +204,7 @@ class DLA:
         Returns
         -------
         new_data : torch.tensor
-            Randomly pertubed data for quality equalization.
+            Randomly perturbed data for quality equalization.
         """
         if accuracy > 1:
             accuracy = accuracy / 100

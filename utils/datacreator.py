@@ -6,10 +6,8 @@ import pandas as pd
 from typing import Union
 from sklearn.preprocessing import MultiLabelBinarizer
 
-
 # Type Hints
 pathType = Union[str, os.PathLike]
-
 
 # Data Class
 class CaptionGenderDataset:
@@ -17,10 +15,10 @@ class CaptionGenderDataset:
     def __init__(self, human_ann_file: pathType, model_ann_file: pathType) -> None:
         self.human_ann_path = human_ann_file
         self.model_ann_path = model_ann_file
-        print("Reading Annontation Files")
+        print("Reading Annotation Files")
         self.human_data = self.read_pkl_file(self.human_ann_path)
         self.model_data = self.read_pkl_file(self.model_ann_path)
-        print("Processing Annontation Data")
+        print("Processing Annotation Data")
         self.processData()
 
     @staticmethod
@@ -57,24 +55,33 @@ class CaptionGenderDataset:
 
         self.human_ann = pd.DataFrame(self.human_ann)
         self.model_ann = pd.DataFrame(self.model_ann)
-        self.attribute_data = pd.DataFrame(self.attribute_data)
+        self.attribute_data = pd.DataFrame(self.attribute_data)#Look for attribute_data instead of object_presence_df
+
         objs = self.mlb.fit_transform(self.attribute_data["objects"])
-        self.attribute_data[self.mlb.classes_] = objs
-        self.attribute_data.drop("objects", axis=1, inplace=True)
+        self.object_presence_df = pd.DataFrame(objs, columns=self.mlb.classes_, index=self.attribute_data["img_id"])
+
         self.attribute_data["gender"] = (
             1 * self.attribute_data["gender"] == "Male"
-        )  # 1 represents Male
+        ).astype(int)  # 1 represents Male
 
     def getData(self) -> list[pd.DataFrame]:
-        return self.human_ann.merge(self.attribute_data), self.model_ann.merge(
-            self.attribute_data
-        )
+        human_merged = self.human_ann.merge(self.attribute_data.drop("objects", axis=1), on="img_id", how="left")
+        model_merged = self.model_ann.merge(self.attribute_data.drop("objects", axis=1), on="img_id", how="left")
+        return human_merged, model_merged
 
+    def get_object_presence_df(self):
+        # Return the object presence DataFrame
+        return self.object_presence_df
 
 if __name__ == "__main__":
-    HUMAN_ANN_PATH = "../bias_data/Human_Ann/gender_obj_cap_mw_entries.pkl"
-    MODEL_ANN_PATH = (
-        "../bias_data/Transformer/gender_val_transformer_cap_mw_entries.pkl"
-    )
+    HUMAN_ANN_PATH = "gender_obj_cap_mw_entries.pkl"
+    MODEL_ANN_PATH = "gender_val_transformer_cap_mw_entries.pkl"
     data_obj = CaptionGenderDataset(HUMAN_ANN_PATH, MODEL_ANN_PATH)
     human_ann, model_ann = data_obj.getData()
+    human_ann, model_ann = data_obj.getData()
+    object_presence_df = data_obj.get_object_presence_df()
+
+# Optional - In case if you want to print the sample results
+    print("Human Annotations Sample:\n", human_ann.head())
+    print("Model Annotations Sample:\n", model_ann.head())
+    print("Object Presence DataFrame:\n", object_presence_df.head())
