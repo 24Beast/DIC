@@ -9,7 +9,6 @@ from typing import Callable, Union, Literal
 from utils.losses import ModifiedBCELoss
 from utils.text import CaptionProcessor
 
-
 # Main class
 class LIC:
     def __init__(
@@ -179,8 +178,7 @@ class LIC:
             raise ValueError("Invalid Metric Given.")
 
     def captionPreprocess(
-        self, model_captions: pd.Series, human_captions: pd.Series
-    ) -> tuple(torch.tensor, torch.tensor):
+        self, model_captions: pd.Series, human_captions: pd.Series) -> tuple(torch.tensor, torch.tensor): # type: ignore
         model_captions = self.capProcessor.maskWords(model_captions, mode="gender")
         human_captions = self.capProcessor.maskWords(human_captions, mode="gender")
         model_captions, human_captions = self.capProcessor.equalize_vocab(
