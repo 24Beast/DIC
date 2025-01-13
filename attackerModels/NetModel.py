@@ -14,7 +14,6 @@ class LSTM_ANN_Model(nn.Module):
         lstm_hidden_size,
         lstm_num_layers,
         lstm_bidirectional,
-        ann_input_size,
         ann_output_size,
         num_ann_layers,
         ann_numFirst,
@@ -35,13 +34,11 @@ class LSTM_ANN_Model(nn.Module):
 
         # ANN layer
         self.ann = simpleDenseModel(
-            input_dims=ann_input_size,
+            input_dims=lstm_hidden_size * 2 if lstm_bidirectional else lstm_hidden_size,
             output_dims=ann_output_size,
             num_layers=num_ann_layers,
             numFirst=ann_numFirst,
         )
-
-        self.output_layer = nn.Linear(ann_output_size, 3)
 
     def forward(self, x):
         x = self.embed(x)
@@ -49,10 +46,7 @@ class LSTM_ANN_Model(nn.Module):
         lstm_out = lstm_out[:, -1, :]
 
         ann_out = self.ann(lstm_out)
-
-        output = self.output_layer(ann_out)
-        output = torch.softmax(output, dim=-1)
-        return output
+        return ann_out
 
     def count_params(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
@@ -68,7 +62,6 @@ if __name__ == "__main__":
     lstm_num_layers = 2
     lstm_bidirectional = True
 
-    ann_input_size = lstm_hidden_size * 2 if lstm_bidirectional else lstm_hidden_size
     ann_output_size = 16
     num_ann_layers = 3
     ann_numFirst = 32
@@ -80,7 +73,6 @@ if __name__ == "__main__":
         lstm_hidden_size,
         lstm_num_layers,
         lstm_bidirectional,
-        ann_input_size,
         ann_output_size,
         num_ann_layers,
         ann_numFirst,
