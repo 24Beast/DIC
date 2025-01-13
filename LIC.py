@@ -23,6 +23,7 @@ class LIC:
         eval_metric: Union[Callable, str] = "mse",
         threshold=True,
         glove_path=None,
+        device="cpu",
     ) -> None:
         """
         Parameters
@@ -55,6 +56,7 @@ class LIC:
         self.train_params = train_params
         self.model_attacker_trained = False
         self.threshold = threshold
+        self.device = device
 
         self.loss_functions = {
             "mse": torch.nn.MSELoss(),
@@ -172,7 +174,9 @@ class LIC:
         model_params = self.model_params["attacker_params"]
         model_params["vocab_size"] = self.vocab_size
         self.attacker_D = model_class(**model_params)
+        self.attacker_D.to(self.device)
         self.attacker_M = copy.deepcopy(self.attacker_D)
+        self.attacker_M.to(self.device)
 
     def initEvalMetric(self, metric: Union[Callable, str]) -> None:
         if callable(metric):
@@ -210,6 +214,9 @@ class LIC:
         normalized: bool = False,
     ) -> tuple[torch.tensor, torch.tensor]:
         pred, data = self.captionPreprocess(pred, data)
+        pred = pred.to(self.device)
+        data = data.to(self.device)
+        feat = feat.to(self.device)
         self.defineModel()
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
@@ -273,6 +280,7 @@ if __name__ == "__main__":
     ]
     GENDER_WORDS = MASCULINE + FEMININE
     GENDER_TOKEN = "<unk>"
+    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     data_obj = CaptionGenderDataset(HUMAN_ANN_PATH, MODEL_ANN_PATH)
     ann_data = data_obj.getDataCombined()
@@ -299,10 +307,10 @@ if __name__ == "__main__":
     }
     # Change format to intialize within LIC to allow vocab size to be passed later on.
     train_params = {
-        "learning_rate": 0.05,
+        "learning_rate": 0.01,
         "loss_function": "bce",
         "epochs": 100,
-        "batch_size": 64,
+        "batch_size": 128,
     }
 
     LIC_obj = LIC(
@@ -313,7 +321,8 @@ if __name__ == "__main__":
         GENDER_TOKEN,
         OBJ_TOKEN,
         "bce",
-        glove_path=GLOVE_PATH,
+        glove_path = GLOVE_PATH,
+        device = DEVICE,
     )
 
     analysis_data = LIC_obj.getAmortizedLeakage(gender, human_ann, model_ann)
