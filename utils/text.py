@@ -155,12 +155,14 @@ class CaptionProcessor:
             substitute_token(token, vocab_model)
             for token in tqdm(vocab_human, desc="Equalizing Human Vocab")
         ]
+        """
         equalized_vocab_model = [
             substitute_token(token, vocab_human)
             for token in tqdm(vocab_model, desc="Equalizing Model Vocab")
         ]
+        """
 
-        return equalized_vocab_human, equalized_vocab_model
+        return equalized_vocab_human, vocab_model
 
 
 # Command-line argument parser to choose tokenizer and substitution mode

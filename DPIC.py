@@ -11,7 +11,7 @@ from utils.text import CaptionProcessor
 
 
 # Main class
-class LIC:
+class DPIC:
     def __init__(
         self,
         model_params: dict,
@@ -168,6 +168,9 @@ class LIC:
         y = y.type(torch.float)
         y_pred = y_pred.type(torch.float)
         return self.eval_metric(y_pred, y)
+    
+    def applyBayesProb(conditional, independent):
+        pass
 
     def defineModel(self) -> None:
         model_class = self.model_params["attacker_class"]
@@ -210,12 +213,16 @@ class LIC:
     def getAmortizedLeakage(
         self,
         feat: torch.tensor,  # Attribute
-        data: pd.Series,  # Human Captions (straight from datacreator)
-        pred: pd.Series,  # Model Captions (straight from datacreator)
+        data_frame: pd.DataFrame,  # Human Captions (straight from datacreator)
+        pred_frame: pd.DataFrame,  # Model Captions (straight from datacreator)
         num_trials: int = 10,
         method: str = "mean",
         normalized: bool = False,
     ) -> tuple[torch.tensor, torch.tensor]:
+        pred = pred_frame["caption"]
+        data = data_frame["caption"]
+        pred_objs = pred_frame.drop("caption",axis=1).to_numpy()
+        data_objs = data_frame.drop("caption",axis=1).to_numpy()
         pred, data = self.captionPreprocess(pred, data)
         pred = pred.to(self.device)
         data = data.to(self.device)
@@ -292,6 +299,7 @@ if __name__ == "__main__":
     OBJ_TOKEN = "<obj>"
 
     human_ann = ann_data["caption_human"]
+    human_ann = data_obj.getLabelPresence(OBJ_WORDS, human_ann)
     model_ann = ann_data["caption_model"]
     gender = torch.tensor(ann_data["gender"]).reshape(-1, 1).type(torch.float)
 
@@ -316,7 +324,7 @@ if __name__ == "__main__":
         "batch_size": 64,
     }
 
-    LIC_obj = LIC(
+    DPIC_obj = DPIC(
         model_params,
         train_params,
         GENDER_WORDS,
@@ -328,6 +336,6 @@ if __name__ == "__main__":
         device=DEVICE,
     )
 
-    analysis_data = LIC_obj.getAmortizedLeakage(
+    analysis_data = DPIC_obj.getAmortizedLeakage(
         gender, human_ann, model_ann, num_trials=5
     )

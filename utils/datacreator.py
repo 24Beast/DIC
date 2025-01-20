@@ -3,11 +3,20 @@ import os
 import pickle
 import numpy as np
 import pandas as pd
-from typing import Union
+from typing import Union, Literal
+from nltk.stem.wordnet import WordNetLemmatizer
 from sklearn.preprocessing import MultiLabelBinarizer
 
 # Type Hints
 pathType = Union[str, os.PathLike]
+boolNum = Literal[0, 1]
+
+
+# Helper Function
+def checkWordPresence(word: str, sentence: str) -> boolNum:
+    if word in sentence.split(" "):
+        return 1
+    return 0
 
 
 # Data Class
@@ -21,6 +30,7 @@ class CaptionGenderDataset:
         self.model_data = self.read_pkl_file(self.model_ann_path)
         print("Processing Annotation Data")
         self.processData()
+        self.wnl = WordNetLemmatizer()
 
     @staticmethod
     def read_pkl_file(file_path: pathType) -> list[dict]:
@@ -92,6 +102,17 @@ class CaptionGenderDataset:
             suffixes=["_human", "_model"],
         )
         return combined_df
+
+    def getLabelPresence(self, labels: list[str], captions: pd.Series) -> pd.DataFrame:
+        new_labels = [self.wnl.lemmatize(item) for item in labels]
+        new_captions = captions.apply(
+            lambda x: " ".join([self.wnl.lemmatize(item) for item in x.split(" ")])
+        )
+        presence_df = pd.DataFrame()
+        presence_df["caption"] = captions
+        for label in new_labels:
+            presence_df[label] = new_captions.apply(lambda sentence : checkWordPresence(label, sentence))
+        return presence_df
 
 
 if __name__ == "__main__":
