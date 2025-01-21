@@ -39,6 +39,9 @@ class LSTM_ANN_Model(nn.Module):
             num_layers=num_ann_layers,
             numFirst=ann_numFirst,
         )
+        self.lastAct = nn.Sigmoid()
+        if ann_output_size > 1:
+            self.lastAct = nn.Softmax()
 
     def forward(self, x):
         x = self.embed(x)
@@ -46,6 +49,7 @@ class LSTM_ANN_Model(nn.Module):
         lstm_out = lstm_out[:, -1, :]
 
         ann_out = self.ann(lstm_out)
+        ann_out = self.lastAct(ann_out)
         return ann_out
 
     def count_params(self):

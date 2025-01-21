@@ -9,6 +9,9 @@ from typing import Callable, Union, Literal
 from utils.losses import ModifiedBCELoss
 from utils.text import CaptionProcessor
 
+# Helper Types
+maskModeType = Literal["gender", "object"]
+
 
 # Main class
 class DPIC:
@@ -21,7 +24,6 @@ class DPIC:
         gender_token: str,
         obj_token: str,
         eval_metric: Union[Callable, str] = "mse",
-        threshold=True,
         glove_path=None,
         device="cpu",
     ) -> None:
@@ -55,7 +57,6 @@ class DPIC:
         self.model_params = model_params
         self.train_params = train_params
         self.model_attacker_trained = False
-        self.threshold = threshold
         self.device = device
 
         self.loss_functions = {
@@ -86,6 +87,7 @@ class DPIC:
         pred_objs: np.array,
         apply_bayes: bool = True,
         normalized: bool = True,
+        mask_mode: maskModeType = "gender",
     ) -> torch.tensor:
         """
         Parameters
@@ -105,15 +107,28 @@ class DPIC:
         """
         # Perform vocab equalization
         self.train(data, feat, "D")
-        lambda_d = self.calcLambda(getattr(self, "attacker_D"), data, feat)
+        lambda_d = self.calcLambda(
+            getattr(self, "attacker_D"), data, feat, data_objs, apply_bayes, mask_mode
+        )
         self.train(pred, feat, "M")
-        lambda_m = self.calcLambda(getattr(self, "attacker_M"), pred, feat)
+        lambda_m = self.calcLambda(
+            getattr(self, "attacker_M"), pred, feat, pred_objs, apply_bayes, mask_mode
+        )
         print(f"{lambda_d=},\n{lambda_m=}")
         # TO DO: Process lambda values using bayes rule
         leakage_amp = lambda_m - lambda_d
         if normalized:
             leakage_amp = leakage_amp / (lambda_m + lambda_d)
         return leakage_amp
+
+    def getProbsfromObjectOccurences(
+        self, occurence_info: torch.tensor
+    ) -> torch.tensor:
+        val, inverse, counts = torch.unique(
+            occurence_info, return_inverse=True, return_counts=True, dim=0
+        )
+        counts = counts / counts.sum()
+        return counts[inverse]
 
     def train(
         self,
@@ -163,18 +178,39 @@ class DPIC:
 
         print("\nModel training completed")
 
+    def getProbs(
+        self,
+        y: torch.tensor,
+        y_pred: torch.tensor,
+        mask_mode: maskModeType = "gender",
+    ) -> torch.tensor:
+        if mask_mode == "gender":
+            args = y.argmax(axis=1)
+            nums = np.arange(len(y))
+            y_pred = y_pred.type(torch.float)
+            probs = y_pred[nums, args]
+        else:
+            probs = (y_pred * y) + ((1 - y) * (1 - y_pred))
+            probs = probs.prod(axis=1)
+        return probs
+
     def calcLambda(
-        self, model: torch.nn.Module, x: torch.tensor, y: torch.tensor
+        self,
+        model: torch.nn.Module,
+        x: torch.tensor,
+        y: torch.tensor,
+        objs: np.array,
+        apply_bayes: bool = True,
+        mask_mode: maskModeType = "gender",
     ) -> torch.tensor:
         y_pred = model(x)
-        if self.threshold:
-            y_pred = y_pred > 0.5
         y = y.type(torch.float)
-        y_pred = y_pred.type(torch.float)
-        return self.eval_metric(y_pred, y)
-
-    def applyBayesProb(self, p_b_if_a, p_a, p_b):
-        return (p_b_if_a * p_a) / p_b
+        probs = self.getProbs(y, y_pred, mask_mode)
+        if apply_bayes:
+            probs_obj = self.getProbsfromObjectOccurences(objs)
+            probs_attr = self.getProbsfromObjectOccurences(y)
+            probs = (probs * probs_obj) / probs_attr
+        return probs.mean()
 
     def defineModel(self) -> None:
         model_class = self.model_params["attacker_class"]
@@ -197,10 +233,13 @@ class DPIC:
             raise ValueError("Invalid Metric Given.")
 
     def captionPreprocess(
-        self, model_captions: pd.Series, human_captions: pd.Series
+        self,
+        model_captions: pd.Series,
+        human_captions: pd.Series,
+        mode: maskModeType = "gender",
     ) -> tuple[torch.tensor, torch.tensor]:  # type: ignore
-        model_captions = self.capProcessor.maskWords(model_captions, mode="gender")
-        human_captions = self.capProcessor.maskWords(human_captions, mode="gender")
+        model_captions = self.capProcessor.maskWords(model_captions, mode=mode)
+        human_captions = self.capProcessor.maskWords(human_captions, mode=mode)
         human_captions, model_captions = self.capProcessor.equalize_vocab(
             human_captions,
             model_captions,
@@ -214,11 +253,6 @@ class DPIC:
         human_cap = self.capProcessor.tokens_to_numbers(human_vocab, human_captions)
         return model_cap, human_cap
 
-    def getProbsfromObjectOccurences(
-        self, occurence_info: np.array
-    ) -> tuple[np.array, np.array]:
-        return np.unique(occurence_info, axis=1)
-
     def getAmortizedLeakage(
         self,
         feat: torch.tensor,  # Attribute
@@ -228,12 +262,13 @@ class DPIC:
         method: str = "mean",
         apply_bayes: bool = True,
         normalized: bool = True,
+        mask_mode: maskModeType = "gender",
     ) -> tuple[torch.tensor, torch.tensor]:
         pred = pred_frame["caption"]
         data = data_frame["caption"]
         pred_objs = pred_frame.drop("caption", axis=1).to_numpy()
         data_objs = data_frame.drop("caption", axis=1).to_numpy()
-        pred, data = self.captionPreprocess(pred, data)
+        pred, data = self.captionPreprocess(pred, data, mask_mode)
         pred = pred.to(self.device)
         data = data.to(self.device)
         feat = feat.to(self.device)
@@ -242,7 +277,14 @@ class DPIC:
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
             vals[i] = self.calcLeak(
-                feat, data, pred, data_objs, pred_objs, apply_bayes, normalized
+                feat,
+                data,
+                pred,
+                data_objs,
+                pred_objs,
+                apply_bayes,
+                normalized,
+                mask_mode,
             )
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
@@ -314,6 +356,7 @@ if __name__ == "__main__":
     human_ann = data_obj.getLabelPresence(OBJ_WORDS, human_ann)
     model_ann = ann_data["caption_model"]
     gender = torch.tensor(ann_data["gender"]).reshape(-1, 1).type(torch.float)
+    gender = torch.hstack([gender, 1 - gender])
 
     model_params = {
         "attacker_class": LSTM_ANN_Model,
@@ -323,7 +366,7 @@ if __name__ == "__main__":
             "lstm_hidden_size": 128,
             "lstm_num_layers": 2,
             "lstm_bidirectional": True,
-            "ann_output_size": 1,
+            "ann_output_size": 2,
             "num_ann_layers": 3,
             "ann_numFirst": 32,
         },
