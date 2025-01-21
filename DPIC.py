@@ -82,7 +82,10 @@ class DPIC:
         feat: torch.tensor,
         data: torch.tensor,
         pred: torch.tensor,
-        normalized: bool = False,
+        data_objs: np.array,
+        pred_objs: np.array,
+        apply_bayes: bool = True,
+        normalized: bool = True,
     ) -> torch.tensor:
         """
         Parameters
@@ -106,6 +109,7 @@ class DPIC:
         self.train(pred, feat, "M")
         lambda_m = self.calcLambda(getattr(self, "attacker_M"), pred, feat)
         print(f"{lambda_d=},\n{lambda_m=}")
+        # TO DO: Process lambda values using bayes rule
         leakage_amp = lambda_m - lambda_d
         if normalized:
             leakage_amp = leakage_amp / (lambda_m + lambda_d)
@@ -168,9 +172,9 @@ class DPIC:
         y = y.type(torch.float)
         y_pred = y_pred.type(torch.float)
         return self.eval_metric(y_pred, y)
-    
-    def applyBayesProb(conditional, independent):
-        pass
+
+    def applyBayesProb(self,p_b_if_a, p_a, p_b):
+        return (p_b_if_a * p_a)/p_b
 
     def defineModel(self) -> None:
         model_class = self.model_params["attacker_class"]
@@ -209,6 +213,9 @@ class DPIC:
         model_cap = self.capProcessor.tokens_to_numbers(model_vocab, model_captions)
         human_cap = self.capProcessor.tokens_to_numbers(human_vocab, human_captions)
         return model_cap, human_cap
+    
+    def getProbsfromObjectOccurences(self, occurence_info: np.array) -> tuple[np.array,np.array]:
+        return np.unique(occurence_info,axis=1)
 
     def getAmortizedLeakage(
         self,
@@ -217,12 +224,13 @@ class DPIC:
         pred_frame: pd.DataFrame,  # Model Captions (straight from datacreator)
         num_trials: int = 10,
         method: str = "mean",
-        normalized: bool = False,
+        apply_bayes: bool = True,
+        normalized: bool = True,
     ) -> tuple[torch.tensor, torch.tensor]:
         pred = pred_frame["caption"]
         data = data_frame["caption"]
-        pred_objs = pred_frame.drop("caption",axis=1).to_numpy()
-        data_objs = data_frame.drop("caption",axis=1).to_numpy()
+        pred_objs = pred_frame.drop("caption", axis=1).to_numpy()
+        data_objs = data_frame.drop("caption", axis=1).to_numpy()
         pred, data = self.captionPreprocess(pred, data)
         pred = pred.to(self.device)
         data = data.to(self.device)
@@ -231,7 +239,7 @@ class DPIC:
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
-            vals[i] = self.calcLeak(feat, data, pred, normalized)
+            vals[i] = self.calcLeak(feat, data, pred, data_objs, pred_objs, apply_bayes,normalized)
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return {

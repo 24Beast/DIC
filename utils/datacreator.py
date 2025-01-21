@@ -111,7 +111,9 @@ class CaptionGenderDataset:
         presence_df = pd.DataFrame()
         presence_df["caption"] = captions
         for label in new_labels:
-            presence_df[label] = new_captions.apply(lambda sentence : checkWordPresence(label, sentence))
+            presence_df[label] = new_captions.apply(
+                lambda sentence: checkWordPresence(label, sentence)
+            )
         return presence_df
 
 
