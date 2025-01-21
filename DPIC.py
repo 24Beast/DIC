@@ -173,8 +173,8 @@ class DPIC:
         y_pred = y_pred.type(torch.float)
         return self.eval_metric(y_pred, y)
 
-    def applyBayesProb(self,p_b_if_a, p_a, p_b):
-        return (p_b_if_a * p_a)/p_b
+    def applyBayesProb(self, p_b_if_a, p_a, p_b):
+        return (p_b_if_a * p_a) / p_b
 
     def defineModel(self) -> None:
         model_class = self.model_params["attacker_class"]
@@ -213,9 +213,11 @@ class DPIC:
         model_cap = self.capProcessor.tokens_to_numbers(model_vocab, model_captions)
         human_cap = self.capProcessor.tokens_to_numbers(human_vocab, human_captions)
         return model_cap, human_cap
-    
-    def getProbsfromObjectOccurences(self, occurence_info: np.array) -> tuple[np.array,np.array]:
-        return np.unique(occurence_info,axis=1)
+
+    def getProbsfromObjectOccurences(
+        self, occurence_info: np.array
+    ) -> tuple[np.array, np.array]:
+        return np.unique(occurence_info, axis=1)
 
     def getAmortizedLeakage(
         self,
@@ -239,7 +241,9 @@ class DPIC:
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
-            vals[i] = self.calcLeak(feat, data, pred, data_objs, pred_objs, apply_bayes,normalized)
+            vals[i] = self.calcLeak(
+                feat, data, pred, data_objs, pred_objs, apply_bayes, normalized
+            )
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return {
