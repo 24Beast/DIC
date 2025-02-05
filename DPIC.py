@@ -115,7 +115,6 @@ class DPIC:
             getattr(self, "attacker_M"), pred, feat, pred_objs, apply_bayes, mask_mode
         )
         print(f"{lambda_d=},\n{lambda_m=}")
-        # TO DO: Process lambda values using bayes rule
         leakage_amp = lambda_m - lambda_d
         if normalized:
             leakage_amp = leakage_amp / (lambda_m + lambda_d)
@@ -138,6 +137,7 @@ class DPIC:
     ) -> torch.tensor:
         self.defineModel()
         model = getattr(self, "attacker_" + attacker_mode)
+        model.train()
         criterion = self.loss_functions[self.train_params["loss_function"]]
         optimizer = optim.Adam(
             model.parameters(), lr=self.train_params["learning_rate"]
@@ -203,10 +203,18 @@ class DPIC:
         apply_bayes: bool = True,
         mask_mode: maskModeType = "gender",
     ) -> torch.tensor:
-        y_pred = model(x)
+        model.eval()
+        y_pred = torch.zeros_like(y).to(self.device)
+        start = 0
+        batches = math.ceil(len(x) / self.train_params["batch_size"])
+        for batch_num in range(batches):
+            x_batch = x[start : (start + self.train_params["batch_size"])]
+            y_pred[start : (start + self.train_params["batch_size"])] = model(x_batch)
+            start += self.train_params["batch_size"]
         y = y.type(torch.float)
         probs = self.getProbs(y, y_pred, mask_mode)
         if apply_bayes:
+            objs = torch.tensor(objs).to(self.device)
             probs_obj = self.getProbsfromObjectOccurences(objs)
             probs_attr = self.getProbsfromObjectOccurences(y)
             probs = (probs * probs_obj) / probs_attr
@@ -272,7 +280,6 @@ class DPIC:
         pred = pred.to(self.device)
         data = data.to(self.device)
         feat = feat.to(self.device)
-        self.defineModel()
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
@@ -355,6 +362,7 @@ if __name__ == "__main__":
     human_ann = ann_data["caption_human"]
     human_ann = data_obj.getLabelPresence(OBJ_WORDS, human_ann)
     model_ann = ann_data["caption_model"]
+    model_ann = data_obj.getLabelPresence(OBJ_WORDS, model_ann)
     gender = torch.tensor(ann_data["gender"]).reshape(-1, 1).type(torch.float)
     gender = torch.hstack([gender, 1 - gender])
 
@@ -373,10 +381,10 @@ if __name__ == "__main__":
     }
     # Change format to intialize within LIC to allow vocab size to be passed later on.
     train_params = {
-        "learning_rate": 0.01,
+        "learning_rate": 0.001,
         "loss_function": "bce",
-        "epochs": 100,
-        "batch_size": 64,
+        "epochs": 50,
+        "batch_size": 1024,
     }
 
     DPIC_obj = DPIC(

@@ -6,6 +6,7 @@ from attackerModels.ANN import simpleDenseModel
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 
+
 # Define the LSTM + ANN model
 class LSTM_ANN_Model(nn.Module):
     def __init__(
@@ -32,7 +33,7 @@ class LSTM_ANN_Model(nn.Module):
             num_layers=lstm_num_layers,
             bidirectional=lstm_bidirectional,
             batch_first=True,
-            dropout=0.3
+            dropout=0.3,
         )
 
         # ANN layer with dynamic input size
@@ -45,7 +46,7 @@ class LSTM_ANN_Model(nn.Module):
 
         self.lastAct = nn.Sigmoid()
         if ann_output_size > 1:
-            self.lastAct = nn.Softmax() 
+            self.lastAct = nn.Softmax()
 
     def forward(self, x):
 
@@ -53,7 +54,9 @@ class LSTM_ANN_Model(nn.Module):
 
         # Embedding
         x = self.embed(x)
-        assert len(x.shape) == 3, f"Expected input shape [batch_size, seq_len], but got {x.shape}"
+        assert (
+            len(x.shape) == 3
+        ), f"Expected input shape [batch_size, seq_len], but got {x.shape}"
 
         # LSTM
         lstm_out, _ = self.lstm(x)
@@ -69,22 +72,47 @@ class LSTM_ANN_Model(nn.Module):
     def count_params(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+
 def get_parser():
     """
     CLI parser for training parameters and file paths.
     """
     parser = argparse.ArgumentParser(description="Train and Save LSTM + ANN Model")
-    parser.add_argument("--vocab_size", type=int, required=True, help="Size of the vocabulary")
-    parser.add_argument("--embedding_dim", type=int, default=100, help="Embedding dimension")
-    parser.add_argument("--pad_idx", type=int, default=0, help="Padding index for embeddings")
-    parser.add_argument("--lstm_hidden_size", type=int, default=128, help="Hidden size of the LSTM")
-    parser.add_argument("--lstm_num_layers", type=int, default=2, help="Number of LSTM layers")
-    parser.add_argument("--lstm_bidirectional", action="store_true", help="Use bidirectional LSTM")
-    parser.add_argument("--ann_output_size", type=int, required=True, help="Output size of ANN")
-    parser.add_argument("--num_ann_layers", type=int, default=3, help="Number of layers in ANN")
-    parser.add_argument("--ann_numFirst", type=int, default=32, help="Number of units in the first ANN layer")
-    parser.add_argument("--save_model_path", required=True, help="Path to save the trained model")
+    parser.add_argument(
+        "--vocab_size", type=int, required=True, help="Size of the vocabulary"
+    )
+    parser.add_argument(
+        "--embedding_dim", type=int, default=100, help="Embedding dimension"
+    )
+    parser.add_argument(
+        "--pad_idx", type=int, default=0, help="Padding index for embeddings"
+    )
+    parser.add_argument(
+        "--lstm_hidden_size", type=int, default=128, help="Hidden size of the LSTM"
+    )
+    parser.add_argument(
+        "--lstm_num_layers", type=int, default=2, help="Number of LSTM layers"
+    )
+    parser.add_argument(
+        "--lstm_bidirectional", action="store_true", help="Use bidirectional LSTM"
+    )
+    parser.add_argument(
+        "--ann_output_size", type=int, required=True, help="Output size of ANN"
+    )
+    parser.add_argument(
+        "--num_ann_layers", type=int, default=3, help="Number of layers in ANN"
+    )
+    parser.add_argument(
+        "--ann_numFirst",
+        type=int,
+        default=32,
+        help="Number of units in the first ANN layer",
+    )
+    parser.add_argument(
+        "--save_model_path", required=True, help="Path to save the trained model"
+    )
     return parser
+
 
 def main(args):
     # Define LSTM + ANN model
@@ -103,6 +131,7 @@ def main(args):
     # Save model
     torch.save(model.state_dict(), args.save_model_path)
     print(f"Model saved to {args.save_model_path}")
+
 
 if __name__ == "__main__":
     parser = get_parser()

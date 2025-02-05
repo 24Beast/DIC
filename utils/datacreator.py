@@ -8,13 +8,15 @@ from typing import Union, Literal
 from nltk.stem.wordnet import WordNetLemmatizer
 from sklearn.preprocessing import MultiLabelBinarizer
 
-nltk.download('wordnet')
+nltk.download("wordnet")
 pathType = Union[str, os.PathLike]
 boolNum = Literal[0, 1]
+
 
 # Helper Function
 def checkWordPresence(word: str, sentence: str) -> int:
     return 1 if word in sentence.split(" ") else 0
+
 
 # Data Class
 class CaptionGenderDataset:
@@ -44,7 +46,9 @@ class CaptionGenderDataset:
             self.attribute_data["img_id"].append(item["img_id"])
             self.attribute_data["gender"].append(item["bb_gender"])
             self.attribute_data["objects"].append(item["rmdup_object_list"])
-            self.human_ann["img_id"].extend([item["img_id"]] * len(item["caption_list"]))
+            self.human_ann["img_id"].extend(
+                [item["img_id"]] * len(item["caption_list"])
+            )
             self.human_ann["caption"].extend(item["caption_list"])
 
         for item in self.model_data:
@@ -60,7 +64,9 @@ class CaptionGenderDataset:
             objs, columns=self.mlb.classes_, index=self.attribute_data["img_id"]
         )
         self.object_presence_df.fillna(0, inplace=True)
-        self.attribute_data["gender"] = self.attribute_data["gender"].apply(lambda x: 1 if x == "Male" else 0)
+        self.attribute_data["gender"] = self.attribute_data["gender"].apply(
+            lambda x: 1 if x == "Male" else 0
+        )
 
         # Add pre-lemmatized captions for faster label presence detection
         self.human_ann["lemmatized_caption"] = self.human_ann["caption"].apply(
@@ -95,6 +101,7 @@ class CaptionGenderDataset:
                 lambda sentence: checkWordPresence(label, sentence)
             )
         return presence_df
+
 
 if __name__ == "__main__":
     HUMAN_ANN_PATH = "./bias_data/Human_Ann/gender_obj_cap_mw_entries.pkl"

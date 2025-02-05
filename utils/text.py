@@ -17,6 +17,7 @@ from tqdm import tqdm
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+
 # Text Processor Class
 class CaptionProcessor:
     def __init__(
@@ -41,9 +42,7 @@ class CaptionProcessor:
         self.gender_token = gender_token
         self.object_words = obj_words
         self.object_token = obj_token
-        self.glove_model = (
-            self.load_glove_model(glove_path) if glove_path else None
-        )
+        self.glove_model = self.load_glove_model(glove_path) if glove_path else None
 
     @staticmethod
     def load_glove_model(glove_path):
@@ -62,16 +61,22 @@ class CaptionProcessor:
         tokens = self.tokenizer(text)
         return [token for token in tokens if token not in self.stopwords]
 
-    def tokens_to_numbers(self, vocab, text_obj: Union[list[str], pd.Series], pad_value: int = 0):
+    def tokens_to_numbers(
+        self, vocab, text_obj: Union[list[str], pd.Series], pad_value: int = 0
+    ):
         sequence = numericalize_tokens_from_iterator(
             vocab, self.apply_tokenizer(text_obj)
         )
         token_ids = [list(next(sequence)) for _ in range(len(text_obj))]
         return pad_sequence(
-            [torch.tensor(x) for x in token_ids], batch_first=True, padding_value=pad_value
+            [torch.tensor(x) for x in token_ids],
+            batch_first=True,
+            padding_value=pad_value,
         )
 
-    def maskWords(self, token_list, mode="gender", object_presence_df=None, img_id=None):
+    def maskWords(
+        self, token_list, mode="gender", object_presence_df=None, img_id=None
+    ):
         if mode not in ["gender", "object"]:
             raise ValueError("Expected mode to be 'gender' or 'object'")
         masked_tokens = []
@@ -81,7 +86,9 @@ class CaptionProcessor:
             elif mode == "object" and token in self.object_words:
                 if object_presence_df is not None and img_id is not None:
                     masked_tokens.append(
-                        self.object_token if object_presence_df.loc[img_id, token] == 1 else token
+                        self.object_token
+                        if object_presence_df.loc[img_id, token] == 1
+                        else token
                     )
                 else:
                     masked_tokens.append(token)
@@ -104,9 +111,9 @@ class CaptionProcessor:
             token_vec = torch.tensor(self.glove_model[token])
 
             corpus_tokens = list(machine_corpus)
-            corpus_embeddings = np.array([
-                self.glove_model[t] for t in corpus_tokens if t in self.glove_model
-            ])  # Skip tokens not in GloVe
+            corpus_embeddings = np.array(
+                [self.glove_model[t] for t in corpus_tokens if t in self.glove_model]
+            )  # Skip tokens not in GloVe
             if len(corpus_embeddings) == 0:  # If no embeddings are found
                 return "unk"
 
@@ -133,11 +140,10 @@ class CaptionProcessor:
             " ".join([substitute_token(token, machine_corpus) for token in tokens])
             for tokens in tqdm(human_tokens, desc="Equalizing Human Vocab")
         ]
-        equalized_model_captions = [
-            " ".join(tokens) for tokens in model_tokens
-        ]
+        equalized_model_captions = [" ".join(tokens) for tokens in model_tokens]
 
         return equalized_human_captions, equalized_model_captions
+
 
 # CLI
 def get_parser():
@@ -158,7 +164,10 @@ if __name__ == "__main__":
     human_ann, model_ann = data_obj.getData()
 
     processor = CaptionProcessor(
-        gender_words=[], obj_words=[], glove_path=args.glove_path, tokenizer=args.tokenizer
+        gender_words=[],
+        obj_words=[],
+        glove_path=args.glove_path,
+        tokenizer=args.tokenizer,
     )
     vocab_human = processor.build_vocab(human_ann.caption)
     vocab_model = processor.build_vocab(model_ann.caption)
