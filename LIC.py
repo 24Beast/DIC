@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import torch.optim as optim
 from typing import Callable, Union, Literal
-from torch.utils.data import DataLoader, TensorDataset
 from utils.losses import ModifiedBCELoss
 from utils.text import CaptionProcessor
 
