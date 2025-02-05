@@ -16,6 +16,7 @@ from utils.datacreator import CaptionGenderDataset
 from tqdm import tqdm
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# torchtext.disable_torchtext_deprecation_warning()
 
 
 # Text Processor Class
@@ -48,7 +49,9 @@ class CaptionProcessor:
     def load_glove_model(glove_path):
         return KeyedVectors.load_word2vec_format(glove_path, binary=False)
 
-    def apply_tokenizer(self, text_obj: Union[list[str], pd.Series]):
+    def apply_tokenizer(
+        self, text_obj: Union[list[str], pd.Series]
+    ) -> Union[list[list[str]] | pd.Series]:
         if isinstance(text_obj, pd.Series):
             return text_obj.apply(self.tokenize)
         return [self.tokenize(text) for text in text_obj]
@@ -75,8 +78,17 @@ class CaptionProcessor:
         )
 
     def maskWords(
-        self, token_list, mode="gender", object_presence_df=None, img_id=None
-    ):
+        self,
+        token_list: Union[list[str], pd.Series],
+        mode: Literal["gender", "object"] = "gender",
+        object_presence_df: pd.DataFrame = None,
+        img_id: int = None,
+    ) -> Union[list[str], pd.Series]:
+        """
+        Mask words based on the specified mode:
+        - "gender": Masks gender words with self.gender_token.
+        - "object": Masks object words with self.object_token if present in object_presence_df.
+        """
         if mode not in ["gender", "object"]:
             raise ValueError("Expected mode to be 'gender' or 'object'")
         masked_tokens = []

@@ -243,6 +243,7 @@ class LIC:
         else:
             raise ValueError("Invalid Method given for Amortization.")
 
+
 if __name__ == "__main__":
     from utils.datacreator import CaptionGenderDataset
     from attackerModels import LSTM_ANN_Model

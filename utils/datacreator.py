@@ -26,9 +26,11 @@ class CaptionGenderDataset:
 
         self.human_ann_path = human_ann_file
         self.model_ann_path = model_ann_file
+        print("Reading Annotation Files")
         self.human_data = self.read_pkl_file(self.human_ann_path)
         self.model_data = self.read_pkl_file(self.model_ann_path)
         self.wnl = WordNetLemmatizer()
+        print("Processing Annotation Data")
         self.processData()
 
     @staticmethod
@@ -68,11 +70,6 @@ class CaptionGenderDataset:
             lambda x: 1 if x == "Male" else 0
         )
 
-        # Add pre-lemmatized captions for faster label presence detection
-        self.human_ann["lemmatized_caption"] = self.human_ann["caption"].apply(
-            lambda x: " ".join([self.wnl.lemmatize(word) for word in x.split()])
-        )
-
     def getData(self) -> list[pd.DataFrame]:
         human_merged = self.human_ann.merge(
             self.attribute_data.drop("objects", axis=1), on="img_id", how="left"
@@ -95,9 +92,12 @@ class CaptionGenderDataset:
 
     def getLabelPresence(self, labels: list[str], captions: pd.Series) -> pd.DataFrame:
         new_labels = [self.wnl.lemmatize(label) for label in labels]
+        new_captions = captions.apply(
+            lambda x: " ".join([self.wnl.lemmatize(item) for item in x.split(" ")])
+        )
         presence_df = pd.DataFrame({"caption": captions})
         for label in new_labels:
-            presence_df[label] = captions.apply(
+            presence_df[label] = new_captions.apply(
                 lambda sentence: checkWordPresence(label, sentence)
             )
         return presence_df
