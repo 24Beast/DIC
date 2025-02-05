@@ -1,9 +1,6 @@
 import sys
 import os
 import torchtext
-
-# torchtext.disable_torchtext_deprecation_warning()
-
 import pandas as pd
 import numpy as np
 import torch
@@ -20,10 +17,8 @@ from tqdm import tqdm
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-
 # Text Processor Class
 class CaptionProcessor:
-
     def __init__(
         self,
         gender_words,
@@ -38,7 +33,7 @@ class CaptionProcessor:
         if tokenizer == "nltk":
             from nltk.tokenize import NLTKWordTokenizer
 
-            self.tokenizer = NLTKWordTokenizer().tokenize  # Set to NLTK's word_tokenize
+            self.tokenizer = NLTKWordTokenizer().tokenize
         else:
             self.tokenizer = get_tokenizer(tokenizer, lang)
         self.stopwords = stopwords
@@ -46,89 +41,62 @@ class CaptionProcessor:
         self.gender_token = gender_token
         self.object_words = obj_words
         self.object_token = obj_token
-        if glove_path:
-            self.glove_model = self.load_glove_model(glove_path)
-        else:
-            self.glove_model = None
+        self.glove_model = (
+            self.load_glove_model(glove_path) if glove_path else None
+        )
 
     @staticmethod
     def load_glove_model(glove_path):
-        print("Loading GloVe embeddings...")
         return KeyedVectors.load_word2vec_format(glove_path, binary=False)
 
-    def apply_tokenizer(
-        self, text_obj: Union[list[str], pd.Series]
-    ) -> Union[list[list[str]] | pd.Series]:
-        if type(text_obj) == pd.Series:
+    def apply_tokenizer(self, text_obj: Union[list[str], pd.Series]):
+        if isinstance(text_obj, pd.Series):
             return text_obj.apply(self.tokenize)
-        else:
-            sentence_tokens = [self.tokenize(text) for text in text_obj]
-            return sentence_tokens
+        return [self.tokenize(text) for text in text_obj]
 
-    def build_vocab(self, text_obj: Union[list[str]]):
-        vocab = build_vocab_from_iterator(iter(self.apply_tokenizer(text_obj)))
+    def build_vocab(self, text_obj: Union[list[str], pd.Series]):
+        vocab = build_vocab_from_iterator(self.apply_tokenizer(text_obj))
         return vocab
 
-    def tokenize(self, text: str) -> list["str"]:
+    def tokenize(self, text: str) -> list[str]:
         tokens = self.tokenizer(text)
-        tokens = [token for token in tokens if token not in self.stopwords]
-        return tokens
+        return [token for token in tokens if token not in self.stopwords]
 
-    def tokens_to_numbers(
-        self, vocab, text_obj: Union[list[str], pd.Series], pad_value: int = 0
-    ):
+    def tokens_to_numbers(self, vocab, text_obj: Union[list[str], pd.Series], pad_value: int = 0):
         sequence = numericalize_tokens_from_iterator(
             vocab, self.apply_tokenizer(text_obj)
         )
-        token_ids = []
-        for i in range(len(text_obj)):
-            x = list(next(sequence))
-            token_ids.append(x)
-        padded_text = pad_sequence(
-            [torch.tensor(x) for x in token_ids],
-            batch_first=True,
-            padding_value=pad_value,
+        token_ids = [list(next(sequence)) for _ in range(len(text_obj))]
+        return pad_sequence(
+            [torch.tensor(x) for x in token_ids], batch_first=True, padding_value=pad_value
         )
-        return padded_text
 
-    def maskWords(
-        self,
-        token_list: Union[list[str], pd.Series],
-        mode: Literal["gender", "object"] = "gender",
-        object_presence_df: pd.DataFrame = None,
-        img_id: int = None,
-    ) -> Union[list[str], pd.Series]:
-        """
-        Mask words based on the specified mode:
-        - "gender": Masks gender words with self.gender_token.
-        - "object": Masks object words with self.object_token if present in object_presence_df.
-        """
+    def maskWords(self, token_list, mode="gender", object_presence_df=None, img_id=None):
+        if mode not in ["gender", "object"]:
+            raise ValueError("Expected mode to be 'gender' or 'object'")
         masked_tokens = []
-        if not (mode in ["gender", "object"]):
-            raise ValueError("Expected only 'gender' or 'object' for mode")
         for token in token_list:
             if mode == "gender" and token in self.gender_words:
                 masked_tokens.append(self.gender_token)
             elif mode == "object" and token in self.object_words:
-                # Check if the object is present in the object_presence_df for this img_id
                 if object_presence_df is not None and img_id is not None:
-                    if object_presence_df.loc[img_id, token] == 1:
-                        masked_tokens.append(self.object_token)
-                    else:
-                        masked_tokens.append(token)
+                    masked_tokens.append(
+                        self.object_token if object_presence_df.loc[img_id, token] == 1 else token
+                    )
                 else:
                     masked_tokens.append(token)
             else:
                 masked_tokens.append(token)
         return masked_tokens
 
-    def equalize_vocab(self, vocab_human, vocab_model, similarity_threshold=0.5):
+    def equalize_vocab(self, human_captions, model_captions, similarity_threshold=0.5):
         """
         Equalize vocabularies by substituting with GloVe embeddings where possible
         and replacing unmatched tokens with 'unk'.
         """
 
         def substitute_token(token, machine_corpus):
+            token = token.lower()  # Ensure consistent casing
             if token in machine_corpus:
                 return token  # Keep if it exists in the machine corpus
             if not self.glove_model or token not in self.glove_model:
@@ -136,7 +104,12 @@ class CaptionProcessor:
             token_vec = torch.tensor(self.glove_model[token])
 
             corpus_tokens = list(machine_corpus)
-            corpus_embeddings = np.array([self.glove_model[t] for t in corpus_tokens])
+            corpus_embeddings = np.array([
+                self.glove_model[t] for t in corpus_tokens if t in self.glove_model
+            ])  # Skip tokens not in GloVe
+            if len(corpus_embeddings) == 0:  # If no embeddings are found
+                return "unk"
+
             corpus_embeddings = torch.tensor(corpus_embeddings)
 
             # Compute cosine similarity and find best match
@@ -150,81 +123,48 @@ class CaptionProcessor:
             else:
                 return "unk"
 
-        # Applying substitution to human and model vocabularies
-        equalized_vocab_human = [
-            substitute_token(token, vocab_model)
-            for token in tqdm(vocab_human, desc="Equalizing Human Vocab")
+        human_tokens = [self.tokenize(caption) for caption in human_captions]
+        model_tokens = [self.tokenize(caption) for caption in model_captions]
+
+        # Perform substitution while maintaining structure
+        machine_corpus = set([token for tokens in model_tokens for token in tokens])
+
+        equalized_human_captions = [
+            " ".join([substitute_token(token, machine_corpus) for token in tokens])
+            for tokens in tqdm(human_tokens, desc="Equalizing Human Vocab")
         ]
-        """
-        equalized_vocab_model = [
-            substitute_token(token, vocab_human)
-            for token in tqdm(vocab_model, desc="Equalizing Model Vocab")
+        equalized_model_captions = [
+            " ".join(tokens) for tokens in model_tokens
         ]
-        """
 
-        return equalized_vocab_human, vocab_model
+        return equalized_human_captions, equalized_model_captions
 
-
-# Command-line argument parser to choose tokenizer and substitution mode
+# CLI
 def get_parser():
     parser = argparse.ArgumentParser(description="CaptionProcessor CLI")
-    parser.add_argument(
-        "--tokenizer",
-        default="nltk",
-        choices=["nltk", "spacy"],
-        help="Choose tokenizer: 'nltk' or 'spacy'",
-    )
-    parser.add_argument(
-        "--mode",
-        default="gender",
-        choices=["gender", "object"],
-        help="Choose masking mode: 'gender' or 'object'",
-    )
-    parser.add_argument(
-        "--glove_path",
-        required=True,
-        help="Path to GloVe embeddings in word2vec format",
-    )
-    parser.add_argument(
-        "--output_folder", default="output", help="Folder to save processed outputs"
-    )
-    parser.add_argument(
-        "--similarity_threshold",
-        type=float,
-        default=0.5,
-        help="Cosine similarity threshold for GloVe substitution",
-    )
+    parser.add_argument("--tokenizer", default="nltk", choices=["nltk", "spacy"])
+    parser.add_argument("--mode", default="gender", choices=["gender", "object"])
+    parser.add_argument("--glove_path", required=True)
+    parser.add_argument("--output_folder", default="output")
+    parser.add_argument("--similarity_threshold", type=float, default=0.5)
     return parser
 
 
-# Test
 if __name__ == "__main__":
     args = get_parser().parse_args()
-
     HUMAN_ANN_PATH = "./bias_data/Human_Ann/gender_obj_cap_mw_entries.pkl"
     MODEL_ANN_PATH = "./bias_data/Transformer/gender_val_transformer_cap_mw_entries.pkl"
-    GENDER_WORDS = []
-    OBJ_WORDS = []
-    GENDER_TOKEN = "GENDER"
-    OBJ_TOKEN = "OBJ"
-
     data_obj = CaptionGenderDataset(HUMAN_ANN_PATH, MODEL_ANN_PATH)
     human_ann, model_ann = data_obj.getData()
-    object_presence_df = data_obj.get_object_presence_df()
 
     processor = CaptionProcessor(
-        GENDER_WORDS, OBJ_WORDS, glove_path=args.glove_path, tokenizer=args.tokenizer
+        gender_words=[], obj_words=[], glove_path=args.glove_path, tokenizer=args.tokenizer
     )
-
     vocab_human = processor.build_vocab(human_ann.caption)
     vocab_model = processor.build_vocab(model_ann.caption)
 
-    # If you want to print sample equalized vocabulary
     equalized_human_vocab, equalized_model_vocab = processor.equalize_vocab(
-        vocab_human,
-        vocab_model,
-        glove_path=None,
-        similarity_threshold=args.similarity_threshold,
+        vocab_human, vocab_model, similarity_threshold=args.similarity_threshold
     )
 
     print("Equalized Vocabulary:")
