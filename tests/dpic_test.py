@@ -52,7 +52,7 @@ def calculate_dpic(data_obj, processor, dpic_model, mode="non-contextual", thres
     print("\nPreprocessing Captions...")
 
     # Calculate DPIC Score
-    dpic_score = dpic_model.getAmortizedLeakage(feat, human_ann, model_ann, num_trials=10, mask_mode="gender")
+    dpic_score = dpic_model.getAmortizedLeakage(feat, human_ann, model_ann, num_trials=15, mask_mode="gender")
     print(f"\nDPIC Score for mode {mode}, Threshold {threshold}: {dpic_score}")
     return dpic_score
 
@@ -93,7 +93,7 @@ def main():
             "learning_rate": 0.01,
             "loss_function": "bce",
             "epochs": 100,
-            "batch_size": 512,
+            "batch_size": 128,
         },
         gender_words=gender_words,
         obj_words=obj_words,
@@ -102,6 +102,7 @@ def main():
         glove_path=args.glove_path,
         device=device,
         eval_metric="bce",
+        
     )
 
     # Initialize results storage
@@ -110,7 +111,7 @@ def main():
     # Calculate DPIC based on selected mode
     if args.mode == "non-contextual":
         non_contextual_dpic = calculate_dpic(data_obj, processor, dpic_model, mode="non-contextual")
-        results.append({"mode": "non-contextual", "threshold": "N/A", "dpic_score": non_contextual_dpic.item()})
+        results.append({"mode": "non-contextual", "threshold": "N/A", "dpic_score": non_contextual_dpic()})
 
     elif args.mode == "contextual":
         for threshold in contextual_thresholds:
