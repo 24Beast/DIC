@@ -1,3 +1,6 @@
+# Provide PYTHONPATH = /path/to/root/directory so that the 
+# file can find the imported directories and files
+
 import argparse
 from utils.datacreator import CaptionGenderDataset
 from utils.text import CaptionProcessor
