@@ -7,7 +7,7 @@ import pandas as pd
 from tqdm import tqdm
 import sys
 import os
-from attackerModels.NetModel import LSTM_ANN_Model, LSTM_RNN_Model
+from attackerModels.NetModel import LSTM_ANN_Model, RNN_ANN_Model
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -64,7 +64,8 @@ def main():
     parser.add_argument("--glove_path", required=True, help="Path to GloVe embeddings in word2vec format")
     parser.add_argument("--output_file", default="lic_scores.csv", help="Output file to save LIC scores")
     parser.add_argument("--mode", required=True, choices=["contextual", "non-contextual"], help="Choose mode: 'contextual' or 'non-contextual'")
-    parser.add_argument("--model_type", required=True, choices=["lstm_ann", "lstm_rnn"], help="Choose model type: 'lstm_ann' or 'lstm_rnn'")
+    parser.add_argument("--use_rnn", action="store_true", help="Use RNN instead of LSTM")
+    parser.add_argument("--bidirectional", action="store_true", help="Use bidirectional LSTM/RNN")   
     args = parser.parse_args()
 
     # Initialize objects
@@ -73,28 +74,43 @@ def main():
         gender_words=gender_words, obj_words=[], glove_path=args.glove_path, tokenizer="nltk", gender_token=gender_token
     )
 
-    model_class = LSTM_ANN_Model if args.model_type == "lstm_ann" else LSTM_RNN_Model
+    if args.use_rnn:
+        model_type = RNN_ANN_Model
+        model_params = {
+            "embedding_dim": 250,
+            "pad_idx": 0,
+            "rnn_hidden_size": 256,
+            "rnn_num_layers": 2,
+            "rnn_bidirectional": args.bidirectional,
+            "ann_output_size": 1,
+            "num_ann_layers": 5,
+            "ann_numFirst": 64,
+        }
+
+    else:
+        model_type = LSTM_ANN_Model
+        model_params = {
+            "embedding_dim": 250,
+            "pad_idx": 0,
+            "lstm_hidden_size": 256,
+            "lstm_num_layers": 2,
+            "lstm_bidirectional": args.bidirectional,
+            "ann_output_size": 1,
+            "num_ann_layers": 5,
+            "ann_numFirst": 64,
+        }
 
     # Initialize LIC
     lic_model = LIC(
         model_params={
-            "attacker_class": model_class,
-            "attacker_params": {
-                "embedding_dim": 250,
-                "pad_idx": 0,
-                "lstm_hidden_size": 256,
-                "lstm_num_layers": 2,
-                "lstm_bidirectional": True,
-                "ann_output_size": 1,
-                "num_ann_layers": 5,
-                "ann_numFirst": 64,
+            "attacker_class": model_type,
+            "attacker_params": model_params,
             },
-        },
         train_params={
             "learning_rate": 0.01,
             "loss_function": "bce",
             "epochs": 100,
-            "batch_size": 512,
+            "batch_size": 1024,
         },
         gender_words=gender_words,
         obj_words=[],
@@ -107,10 +123,10 @@ def main():
 
     # Initialize results storage
     results = []
-    # Calculate LIC based on selected mode
+
     if args.mode == "non-contextual":
         non_contextual_lic = calculate_lic(data_obj, processor, lic_model, mode="non-contextual")
-        results.append({"mode": "non-contextual", "threshold": "N/A", "lic_score": non_contextual_lic})
+        results.append({"mode": "non-contextual", "threshold": "N/A", "lic_score_mean": non_contextual_lic["Mean"].item(), "lic_score_std_dev": non_contextual_lic["std"].item(), "Number of Trials": non_contextual_lic["num_trials"]})
 
     elif args.mode == "contextual":
         for threshold in contextual_thresholds:
@@ -124,3 +140,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# echo 'export PATH=$CONDA_PREFIX/bin:$PATH' >> ~/.bashrc
+# echo 'export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
+# source ~/.bashrc
+
+#PYTHONPATH=/home/nshah96/DIC python vocab_test_with_change.py --human_path /home/nshah96/DIC/data/gender_obj_cap_mw_entries.pkl --model_path /home/nshah96/DIC/data/gender_val_att2in_cap_mw_entries.pkl --glove_path /home/nshah96/DIC/data/word2vec.6B.100d.txt --output_file /home/nshah96/DIC/results/att2in_lic_non_contextual_scores.csv --mode non-contextual --use_rnn --bidirectional

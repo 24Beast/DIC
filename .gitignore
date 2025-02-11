@@ -7,5 +7,6 @@ glove.6B.100d.txt.zip
 word2vec.6B.100d.txt
 word2vec.6B.100d.txt.zip
 results/
+run_scripts/
 *.txt
 *.sh

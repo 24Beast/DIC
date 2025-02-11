@@ -5,7 +5,7 @@ import sys
 from utils.datacreator import CaptionGenderDataset
 from utils.text import CaptionProcessor
 from DPIC import DPIC
-from attackerModels.NetModel import LSTM_ANN_Model, LSTM_RNN_Model
+from attackerModels.NetModel import LSTM_ANN_Model, RNN_ANN_Model
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -52,7 +52,7 @@ def calculate_dpic(data_obj, processor, dpic_model, mode="non-contextual", thres
     print("\nPreprocessing Captions...")
 
     # Calculate DPIC Score
-    dpic_score = dpic_model.getAmortizedLeakage(feat, human_ann, model_ann, num_trials=10, mask_mode="gender")
+    dpic_score = dpic_model.getAmortizedLeakage(feat, human_ann, model_ann, num_trials=15, mask_mode="gender")
     print(f"\nDPIC Score for mode {mode}, Threshold {threshold}: {dpic_score}")
     return dpic_score
 
@@ -63,7 +63,8 @@ def main():
     parser.add_argument("--glove_path", required=True, help="Path to GloVe embeddings in word2vec format")
     parser.add_argument("--output_file", default="dpic_scores.csv", help="Output file to save DPIC scores")
     parser.add_argument("--mode", required=True, choices=["contextual", "non-contextual"], help="Choose mode: 'contextual' or 'non-contextual'")
-    parser.add_argument("--model_type", required=True, choices=["lstm_ann", "lstm_rnn"], help="Choose model type: 'lstm_ann' or 'lstm_rnn'")
+    parser.add_argument("--use_rnn", action="store_true", help="Use RNN instead of LSTM")
+    parser.add_argument("--bidirectional", action="store_true", help="Use bidirectional LSTM/RNN") 
     args = parser.parse_args()
 
     # Initialize objects
@@ -75,28 +76,42 @@ def main():
     object_presence_df = data_obj.get_object_presence_df()
     obj_words = object_presence_df.columns.tolist()
 
-    model_class = LSTM_ANN_Model if args.model_type == "lstm_ann" else LSTM_RNN_Model
+    if args.use_rnn:
+        model_type = RNN_ANN_Model
+        model_params = {
+            "embedding_dim": 250,
+            "pad_idx": 0,
+            "rnn_hidden_size": 256,  # Use rnn_hidden_size instead of lstm_hidden_size
+            "rnn_num_layers": 2,
+            "rnn_bidirectional": args.bidirectional,
+            "ann_output_size": 1,
+            "num_ann_layers": 5,
+            "ann_numFirst": 64,
+        }
+    else:
+        model_type = LSTM_ANN_Model
+        model_params = {
+            "embedding_dim": 250,
+            "pad_idx": 0,
+            "lstm_hidden_size": 256,
+            "lstm_num_layers": 2,
+            "lstm_bidirectional": args.bidirectional,
+            "ann_output_size": 1,
+            "num_ann_layers": 5,
+            "ann_numFirst": 64,
+        }
 
     # Initialize DPIC Model
     dpic_model = DPIC(
         model_params={
-            "attacker_class": model_class,
-            "attacker_params": {
-                "embedding_dim": 250,
-                "pad_idx": 0,
-                "lstm_hidden_size": 256,
-                "lstm_num_layers": 2,
-                "lstm_bidirectional": True,
-                "ann_output_size": 1,
-                "num_ann_layers": 5,
-                "ann_numFirst": 64,
-            },
+            "attacker_class": model_type,
+            "attacker_params": model_params,
         },
         train_params={
             "learning_rate": 0.01,
             "loss_function": "bce",
             "epochs": 100,
-            "batch_size": 512,
+            "batch_size": 128,
         },
         gender_words=gender_words,
         obj_words=obj_words,
@@ -105,6 +120,7 @@ def main():
         glove_path=args.glove_path,
         device=device,
         eval_metric="bce",
+        
     )
 
     # Initialize results storage
@@ -113,7 +129,7 @@ def main():
     # Calculate DPIC based on selected mode
     if args.mode == "non-contextual":
         non_contextual_dpic = calculate_dpic(data_obj, processor, dpic_model, mode="non-contextual")
-        results.append({"mode": "non-contextual", "threshold": "N/A", "dpic_score": non_contextual_dpic.item()})
+        results.append({"mode": "non-contextual", "threshold": "N/A", "dpic_score_mean": contextual_dpic["Mean"].item(), "dpic_score_std_dev": contextual_dpic["std"].item(), "Number of Trials": contextual_dpic["num_trials"]})
 
     elif args.mode == "contextual":
         for threshold in contextual_thresholds:

@@ -12,7 +12,6 @@ from utils.text import CaptionProcessor
 # Helper Types
 maskModeType = Literal["gender", "object"]
 
-
 # Main class
 class DPIC:
     def __init__(
@@ -209,7 +208,7 @@ class DPIC:
         batches = math.ceil(len(x) / self.train_params["batch_size"])
         for batch_num in range(batches):
             x_batch = x[start : (start + self.train_params["batch_size"])]
-            y_pred[start : (start + self.train_params["batch_size"])] = model(x_batch)
+            y_pred[start : (start + self.train_params["batch_size"])] = model(x_batch) 
             start += self.train_params["batch_size"]
         y = y.type(torch.float)
         probs = self.getProbs(y, y_pred, mask_mode)
@@ -292,7 +291,7 @@ class DPIC:
                 apply_bayes,
                 normalized,
                 mask_mode,
-            )
+            ).item()
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return {
@@ -312,11 +311,11 @@ class DPIC:
 
 if __name__ == "__main__":
     from utils.datacreator import CaptionGenderDataset
-    from attackerModels import LSTM_ANN_Model
+    from attackerModels.NetModel import LSTM_ANN_Model
 
-    HUMAN_ANN_PATH = "./bias_data/Human_Ann/gender_obj_cap_mw_entries.pkl"
-    MODEL_ANN_PATH = "./bias_data/Transformer/gender_val_transformer_cap_mw_entries.pkl"
-    GLOVE_PATH = "./glove.6B.50d.w2vformat.txt"
+    HUMAN_ANN_PATH = "/home/nshah96/DIC/data/gender_obj_cap_mw_entries.pkl"
+    MODEL_ANN_PATH = "/home/nshah96/DIC/data/gender_val_transformer_cap_mw_entries.pkl"
+    GLOVE_PATH = "/home/nshah96/DIC/data/word2vec.6B.100d.txt"
     MASCULINE = [
         "man",
         "men",
@@ -400,5 +399,5 @@ if __name__ == "__main__":
     )
 
     analysis_data = DPIC_obj.getAmortizedLeakage(
-        gender, human_ann, model_ann, num_trials=5
+        gender, human_ann, model_ann, num_trials=2
     )
