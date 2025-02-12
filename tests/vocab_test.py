@@ -191,7 +191,9 @@ def main():
             {
                 "mode": "non-contextual",
                 "threshold": "N/A",
-                "lic_score": non_contextual_lic,
+                "lic_score_mean": non_contextual_lic["Mean"].item(),
+                "lic_score_std_dev": non_contextual_lic["std"].item(),
+                "num_trials" : non_contextual_lic["num_trials"],
             }
         )
 
@@ -204,8 +206,9 @@ def main():
                 {
                     "mode": "contextual",
                     "threshold": threshold,
-                    "lic_score_mean": contextual_lic[0].item(),
-                    "lic_score_std_dev": contextual_lic[1].item(),
+                    "lic_score_mean": contextual_lic["Mean"].item(),
+                    "lic_score_std_dev": contextual_lic["std"].item(),
+                    "num_trials" : contextual_lic["num_trials"],
                 }
             )
 
