@@ -26,19 +26,67 @@ contextual_thresholds = [round(x * 0.05, 2) for x in range(11, 16)]
 
 # Step 1: Define Gender Words and Token
 masculine = [
-    'man', 'men', 'male', 'father', 'gentleman', 'gentlemen', 'boy', 'boys', 'uncle', 'husband', 'actor', 'prince',
-    'waiter', 'son', 'he', 'his', 'him', 'himself', 'brother', 'brothers', 'guy', 'guys', 'emperor', 'emperors', 
-    'dude', 'dudes', 'cowboy'
+    "man",
+    "men",
+    "male",
+    "father",
+    "gentleman",
+    "gentlemen",
+    "boy",
+    "boys",
+    "uncle",
+    "husband",
+    "actor",
+    "prince",
+    "waiter",
+    "son",
+    "he",
+    "his",
+    "him",
+    "himself",
+    "brother",
+    "brothers",
+    "guy",
+    "guys",
+    "emperor",
+    "emperors",
+    "dude",
+    "dudes",
+    "cowboy",
 ]
 feminine = [
-    'woman', 'women', 'female', 'lady', 'ladies', 'mother', 'girl', 'girls', 'aunt', 'wife', 'actress', 'princess', 
-    'waitress', 'daughter', 'she', 'her', 'hers', 'herself', 'sister', 'sisters', 'queen', 'queens', 'pregnant'
+    "woman",
+    "women",
+    "female",
+    "lady",
+    "ladies",
+    "mother",
+    "girl",
+    "girls",
+    "aunt",
+    "wife",
+    "actress",
+    "princess",
+    "waitress",
+    "daughter",
+    "she",
+    "her",
+    "hers",
+    "herself",
+    "sister",
+    "sisters",
+    "queen",
+    "queens",
+    "pregnant",
 ]
 gender_words = masculine + feminine
 gender_token = "gender"
 
+
 def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", threshold=0.5):
-    print(f"\nCalculating LIC for mode: {mode}, Threshold: {threshold if threshold else 'N/A'}")
+    print(
+        f"\nCalculating LIC for mode: {mode}, Threshold: {threshold if threshold else 'N/A'}"
+    )
 
     combined_data = data_obj.getDataCombined()
     print("\nLoaded Combined Dataset:")
@@ -47,31 +95,61 @@ def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", thresho
     # Extract Features
     human_ann = combined_data["caption_human"]
     model_ann = combined_data["caption_model"]
-    feat = torch.tensor(combined_data["gender"].values, dtype=torch.float, device=device).reshape(-1, 1)
+    feat = torch.tensor(
+        combined_data["gender"].values, dtype=torch.float, device=device
+    ).reshape(-1, 1)
 
     print("\nPreprocessing Captions...")
 
     # Calculate LIC Score
 
-    lic_score = lic_model.getAmortizedLeakage(feat, human_ann, model_ann, normalized=False)
+    lic_score = lic_model.getAmortizedLeakage(
+        feat, human_ann, model_ann, normalized=False
+    )
     print(f"\nLIC Score for mode {mode}, Threshold {threshold}: {lic_score}")
     return lic_score
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Test LIC and Contextual LIC calculations")
-    parser.add_argument("--human_path", required=True, help="Path to human annotations pickle file")
-    parser.add_argument("--model_path", required=True, help="Path to model annotations pickle file")
-    parser.add_argument("--glove_path", required=True, help="Path to GloVe embeddings in word2vec format")
-    parser.add_argument("--output_file", default="lic_scores.csv", help="Output file to save LIC scores")
-    parser.add_argument("--mode", required=True, choices=["contextual", "non-contextual"], help="Choose mode: 'contextual' or 'non-contextual'")
-    parser.add_argument("--use_rnn", action="store_true", help="Use RNN instead of LSTM")
-    parser.add_argument("--bidirectional", action="store_true", help="Use bidirectional LSTM/RNN")   
+    parser = argparse.ArgumentParser(
+        description="Test LIC and Contextual LIC calculations"
+    )
+    parser.add_argument(
+        "--human_path", required=True, help="Path to human annotations pickle file"
+    )
+    parser.add_argument(
+        "--model_path", required=True, help="Path to model annotations pickle file"
+    )
+    parser.add_argument(
+        "--glove_path",
+        required=True,
+        help="Path to GloVe embeddings in word2vec format",
+    )
+    parser.add_argument(
+        "--output_file", default="lic_scores.csv", help="Output file to save LIC scores"
+    )
+    parser.add_argument(
+        "--mode",
+        required=True,
+        choices=["contextual", "non-contextual"],
+        help="Choose mode: 'contextual' or 'non-contextual'",
+    )
+    parser.add_argument(
+        "--use_rnn", action="store_true", help="Use RNN instead of LSTM"
+    )
+    parser.add_argument(
+        "--bidirectional", action="store_true", help="Use bidirectional LSTM/RNN"
+    )
     args = parser.parse_args()
 
     # Initialize objects
     data_obj = CaptionGenderDataset(args.human_path, args.model_path)
     processor = CaptionProcessor(
-        gender_words=gender_words, obj_words=[], glove_path=args.glove_path, tokenizer="nltk", gender_token=gender_token
+        gender_words=gender_words,
+        obj_words=[],
+        glove_path=args.glove_path,
+        tokenizer="nltk",
+        gender_token=gender_token,
     )
 
     if args.use_rnn:
@@ -105,7 +183,7 @@ def main():
         model_params={
             "attacker_class": model_type,
             "attacker_params": model_params,
-            },
+        },
         train_params={
             "learning_rate": 0.01,
             "loss_function": "bce",
@@ -118,25 +196,46 @@ def main():
         obj_token="obj",
         glove_path=args.glove_path,
         device=device,
-        eval_metric = "bce",
-        )
+        eval_metric="bce",
+    )
 
     # Initialize results storage
     results = []
 
     if args.mode == "non-contextual":
-        non_contextual_lic = calculate_lic(data_obj, processor, lic_model, mode="non-contextual")
-        results.append({"mode": "non-contextual", "threshold": "N/A", "lic_score_mean": non_contextual_lic["Mean"].item(), "lic_score_std_dev": non_contextual_lic["std"].item(), "Number of Trials": non_contextual_lic["num_trials"]})
+        non_contextual_lic = calculate_lic(
+            data_obj, processor, lic_model, mode="non-contextual"
+        )
+        results.append(
+            {
+                "mode": "non-contextual",
+                "threshold": "N/A",
+                "lic_score_mean": non_contextual_lic["Mean"].item(),
+                "lic_score_std_dev": non_contextual_lic["std"].item(),
+                "Number of Trials": non_contextual_lic["num_trials"],
+            }
+        )
 
     elif args.mode == "contextual":
         for threshold in contextual_thresholds:
-            contextual_lic = calculate_lic(data_obj, processor, lic_model, mode="contextual", threshold=threshold)
-            results.append({"mode": "contextual", "threshold": threshold, "lic_score_mean": contextual_lic["Mean"].item(), "lic_score_std_dev": contextual_lic["std"].item(), "Number of Trials": contextual_lic["num_trials"]})
+            contextual_lic = calculate_lic(
+                data_obj, processor, lic_model, mode="contextual", threshold=threshold
+            )
+            results.append(
+                {
+                    "mode": "contextual",
+                    "threshold": threshold,
+                    "lic_score_mean": contextual_lic["Mean"].item(),
+                    "lic_score_std_dev": contextual_lic["std"].item(),
+                    "Number of Trials": contextual_lic["num_trials"],
+                }
+            )
 
     # Save results to CSV
     results_df = pd.DataFrame(results)
     results_df.to_csv(args.output_file, index=False)
     print(f"\nResults saved to {args.output_file}")
+
 
 if __name__ == "__main__":
     main()
@@ -145,4 +244,4 @@ if __name__ == "__main__":
 # echo 'export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
 # source ~/.bashrc
 
-#PYTHONPATH=/home/nshah96/DIC python vocab_test_with_change.py --human_path /home/nshah96/DIC/data/gender_obj_cap_mw_entries.pkl --model_path /home/nshah96/DIC/data/gender_val_att2in_cap_mw_entries.pkl --glove_path /home/nshah96/DIC/data/word2vec.6B.100d.txt --output_file /home/nshah96/DIC/results/att2in_lic_non_contextual_scores.csv --mode non-contextual --use_rnn --bidirectional
+# PYTHONPATH=/home/nshah96/DIC python vocab_test_with_change.py --human_path /home/nshah96/DIC/data/gender_obj_cap_mw_entries.pkl --model_path /home/nshah96/DIC/data/gender_val_att2in_cap_mw_entries.pkl --glove_path /home/nshah96/DIC/data/word2vec.6B.100d.txt --output_file /home/nshah96/DIC/results/att2in_lic_non_contextual_scores.csv --mode non-contextual --use_rnn --bidirectional

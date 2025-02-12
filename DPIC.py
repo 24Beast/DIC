@@ -12,6 +12,7 @@ from utils.text import CaptionProcessor
 # Helper Types
 maskModeType = Literal["gender", "object"]
 
+
 # Main class
 class DPIC:
     def __init__(
@@ -208,7 +209,7 @@ class DPIC:
         batches = math.ceil(len(x) / self.train_params["batch_size"])
         for batch_num in range(batches):
             x_batch = x[start : (start + self.train_params["batch_size"])]
-            y_pred[start : (start + self.train_params["batch_size"])] = model(x_batch) 
+            y_pred[start : (start + self.train_params["batch_size"])] = model(x_batch)
             start += self.train_params["batch_size"]
         y = y.type(torch.float)
         probs = self.getProbs(y, y_pred, mask_mode)

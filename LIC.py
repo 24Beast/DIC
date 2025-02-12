@@ -11,6 +11,7 @@ from utils.text import CaptionProcessor
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 # Main class
 class LIC:
     def __init__(
@@ -100,9 +101,14 @@ class LIC:
             start, running_loss = 0, 0.0
 
             for _ in range(batches):
-                x_batch = x[start : start + self.train_params["batch_size"]].to(self.device
-                ).long()
-                y_batch = y[start : start + self.train_params["batch_size"]].to(self.device)
+                x_batch = (
+                    x[start : start + self.train_params["batch_size"]]
+                    .to(self.device)
+                    .long()
+                )
+                y_batch = y[start : start + self.train_params["batch_size"]].to(
+                    self.device
+                )
 
                 optimizer.zero_grad()
                 outputs = model(x_batch)
@@ -157,16 +163,16 @@ class LIC:
         model_cap = self.capProcessor.tokens_to_numbers(model_vocab, model_captions)
         human_cap = self.capProcessor.tokens_to_numbers(human_vocab, human_captions)
         return model_cap, human_cap
-    
+
     def getAmortizedLeakage(
-    self,
-    feat: torch.tensor,
-    data: pd.Series,  
-    pred: pd.Series,  
-    num_trials: int = 25,
-    method: str = "mean",
-    normalized: bool = False,
-) -> tuple[torch.tensor, torch.tensor]:
+        self,
+        feat: torch.tensor,
+        data: pd.Series,
+        pred: pd.Series,
+        num_trials: int = 25,
+        method: str = "mean",
+        normalized: bool = False,
+    ) -> tuple[torch.tensor, torch.tensor]:
         pred, data = self.captionPreprocess(pred, data)
         pred = pred.to(self.device)
         data = data.to(self.device)
