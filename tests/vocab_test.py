@@ -101,6 +101,7 @@ def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", thresho
     feat = torch.tensor(
         combined_data["gender"].values, dtype=torch.float, device=device
     ).reshape(-1, 1)
+    feat = torch.hstack([feat, 1 - feat])
 
     print("\nPreprocessing Captions...")
 
@@ -159,8 +160,8 @@ def main():
                 "lstm_hidden_size": 256,
                 "lstm_num_layers": 2,
                 "lstm_bidirectional": True,
-                "ann_output_size": 1,
-                "num_ann_layers": 5,
+                "ann_output_size": 2,
+                "num_ann_layers": 2,
                 "ann_numFirst": 64,
             },
         },

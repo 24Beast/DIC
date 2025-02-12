@@ -138,11 +138,10 @@ class LIC:
                 x_batch = x[start:end].to(self.device)
                 batch_pred = model(x_batch)
                 y_pred_list.append(batch_pred.cpu())
-
         y_pred = torch.cat(y_pred_list, dim=0).to(self.device)
-
-        y_pred = (y_pred > 0.5).float() if self.threshold else y_pred
-        return self.eval_metric(y_pred, y.float())
+        matches = (y_pred.argmax(axis=1) == y.argmax(axis=1)) * 1.0
+        vals = y_pred.max(dim=1).values * matches
+        return vals.mean()
 
     def defineModel(self):
         model_class = self.model_params["attacker_class"]
@@ -196,3 +195,97 @@ class LIC:
             }
         else:
             raise ValueError("Invalid Method given for Amortization.")
+
+
+if __name__ == "__main__":
+    from utils.datacreator import CaptionGenderDataset
+    from attackerModels import LSTM_ANN_Model
+
+    HUMAN_ANN_PATH = "../DPAC/bias_data/Human_Ann/gender_obj_cap_mw_entries.pkl"
+    MODEL_ANN_PATH = (
+        "../DPAC/bias_data/Transformer/gender_val_transformer_cap_mw_entries.pkl"
+    )
+    GLOVE_PATH = "../DPAC/glove.6B.50d.w2vformat.txt"
+    MASCULINE = [
+        "man",
+        "men",
+        "male",
+        "father",
+        "gentleman",
+        "boy",
+        "uncle",
+        "husband",
+        "actor",
+        "prince",
+        "waiter",
+        "he",
+        "his",
+        "him",
+    ]
+    FEMININE = [
+        "woman",
+        "women",
+        "female",
+        "mother",
+        "lady",
+        "girl",
+        "aunt",
+        "wife",
+        "actress",
+        "princess",
+        "waitress",
+        "she",
+        "her",
+        "hers",
+    ]
+    GENDER_WORDS = MASCULINE + FEMININE
+    GENDER_TOKEN = "<unk>"
+    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    data_obj = CaptionGenderDataset(HUMAN_ANN_PATH, MODEL_ANN_PATH)
+    ann_data = data_obj.getDataCombined()
+    object_presence_df = data_obj.get_object_presence_df()
+    OBJ_WORDS = object_presence_df.columns.tolist()
+    OBJ_TOKEN = "<obj>"
+
+    human_ann = ann_data["caption_human"]
+    model_ann = ann_data["caption_model"]
+    gender = torch.tensor(ann_data["gender"]).reshape(-1, 1).type(torch.float)
+    gender = torch.hstack([gender, 1 - gender])
+
+    model_params = {
+        "attacker_class": LSTM_ANN_Model,
+        "attacker_params": {
+            "embedding_dim": 250,
+            "pad_idx": 0,
+            "lstm_hidden_size": 256,
+            "lstm_num_layers": 2,
+            "lstm_bidirectional": True,
+            "ann_output_size": 2,
+            "num_ann_layers": 1,
+            "ann_numFirst": 64,
+        },
+    }
+    # Change format to intialize within LIC to allow vocab size to be passed later on.
+    train_params = {
+        "learning_rate": 0.001,
+        "loss_function": "bce",
+        "epochs": 50,
+        "batch_size": 1024,
+    }
+
+    LIC_obj = LIC(
+        model_params,
+        train_params,
+        GENDER_WORDS,
+        OBJ_WORDS,
+        GENDER_TOKEN,
+        OBJ_TOKEN,
+        "bce",
+        glove_path=GLOVE_PATH,
+        device=DEVICE,
+    )
+
+    analysis_data = LIC_obj.getAmortizedLeakage(
+        gender, human_ann, model_ann, num_trials=10
+    )
