@@ -79,7 +79,7 @@ class CaptionProcessor:
 
     def maskWords(
         self,
-        token_list: Union[list[str], pd.Series],
+        string_list: Union[list[str], pd.Series],
         mode: Literal["gender", "object"] = "gender",
         object_presence_df: pd.DataFrame = None,
         img_id: int = None,
@@ -91,22 +91,30 @@ class CaptionProcessor:
         """
         if mode not in ["gender", "object"]:
             raise ValueError("Expected mode to be 'gender' or 'object'")
-        masked_tokens = []
-        for token in token_list:
-            if mode == "gender" and token in self.gender_words:
-                masked_tokens.append(self.gender_token)
-            elif mode == "object" and token in self.object_words:
-                if object_presence_df is not None and img_id is not None:
-                    masked_tokens.append(
-                        self.object_token
-                        if object_presence_df.loc[img_id, token] == 1
-                        else token
-                    )
+        masked_strings = []
+        for string in string_list:
+            masked_tokens = []
+            token_list = self.tokenize(string)
+            for token in token_list:
+                if mode == "gender" and token in self.gender_words:
+                    masked_tokens.append(self.gender_token)
+                elif mode == "object" and token in self.object_words:
+                    """
+                    TODO : Previous logic, needs to be updated
+                    if object_presence_df is not None and img_id is not None:
+                        masked_tokens.append(
+                            self.object_token
+                            if object_presence_df.loc[img_id, token] == 1
+                            else token
+                        )
+                    else:
+                        masked_tokens.append(token)
+                    """
+                    masked_tokens.append(self.object_token)
                 else:
                     masked_tokens.append(token)
-            else:
-                masked_tokens.append(token)
-        return masked_tokens
+            masked_strings.append(" ".join(masked_tokens))
+        return masked_strings
 
     def equalize_vocab(self, human_captions, model_captions, similarity_threshold=0.5):
         """

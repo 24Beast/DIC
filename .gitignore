@@ -10,3 +10,4 @@ results/
 run_scripts/
 *.txt
 *.sh
+COCO_datagen.py

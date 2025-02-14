@@ -314,9 +314,9 @@ if __name__ == "__main__":
     from utils.datacreator import CaptionGenderDataset
     from attackerModels.NetModel import LSTM_ANN_Model
 
-    HUMAN_ANN_PATH = "/home/nshah96/DIC/data/gender_obj_cap_mw_entries.pkl"
-    MODEL_ANN_PATH = "/home/nshah96/DIC/data/gender_val_transformer_cap_mw_entries.pkl"
-    GLOVE_PATH = "/home/nshah96/DIC/data/word2vec.6B.100d.txt"
+    HUMAN_ANN_PATH = "./bias_data/Human_Ann/gender_obj_cap_mw_entries.pkl"
+    MODEL_ANN_PATH = "./bias_data/Transformer/gender_val_transformer_cap_mw_entries.pkl"
+    GLOVE_PATH = "./glove.6B.50d.w2vformat.txt"
     MASCULINE = [
         "man",
         "men",
@@ -358,13 +358,26 @@ if __name__ == "__main__":
     object_presence_df = data_obj.get_object_presence_df()
     OBJ_WORDS = object_presence_df.columns.tolist()
     OBJ_TOKEN = "<obj>"
+    NUM_OBJS = len(OBJ_WORDS)
 
+    """
+    MODE = "gender"
     human_ann = ann_data["caption_human"]
     human_ann = data_obj.getLabelPresence(OBJ_WORDS, human_ann)
     model_ann = ann_data["caption_model"]
     model_ann = data_obj.getLabelPresence(OBJ_WORDS, model_ann)
     gender = torch.tensor(ann_data["gender"]).reshape(-1, 1).type(torch.float)
     gender = torch.hstack([gender, 1 - gender])
+    """
+
+    MODE = "object"
+    MODE = "gender"
+    human_ann = ann_data["caption_human"]
+    human_ann = data_obj.getLabelPresence(GENDER_WORDS, human_ann)
+    model_ann = ann_data["caption_model"]
+    model_ann = data_obj.getLabelPresence(GENDER_WORDS, model_ann)
+    objects = ann_data.merge(object_presence_df, on="img_id").iloc[:, 4:]
+    objects = torch.tensor(objects.values).type(torch.float)
 
     model_params = {
         "attacker_class": LSTM_ANN_Model,
@@ -374,7 +387,7 @@ if __name__ == "__main__":
             "lstm_hidden_size": 128,
             "lstm_num_layers": 2,
             "lstm_bidirectional": True,
-            "ann_output_size": 2,
+            "ann_output_size": NUM_OBJS,  # 2 for MODE = "gender"
             "num_ann_layers": 3,
             "ann_numFirst": 32,
         },
@@ -398,7 +411,11 @@ if __name__ == "__main__":
         glove_path=GLOVE_PATH,
         device=DEVICE,
     )
-
+    """
     analysis_data = DPIC_obj.getAmortizedLeakage(
-        gender, human_ann, model_ann, num_trials=2
+        gender, human_ann, model_ann, num_trials=2, mask_mode= MODE
+    )
+    """
+    analysis_data = DPIC_obj.getAmortizedLeakage(
+        objects, human_ann, model_ann, num_trials=2, mask_mode=MODE
     )
