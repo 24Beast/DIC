@@ -80,6 +80,16 @@ gender_words = masculine + feminine
 gender_token = "gender"
 
 
+def processGender(data: pd.DataFrame) -> pd.DataFrame:
+    m_cols = [item for item in data.columns if item in masculine]
+    f_cols = [item for item in data.columns if item in feminine]
+    data["M"] = data[m_cols].sum(axis=1)
+    data["F"] = data[f_cols].sum(axis=1)
+    data["M1"] = (data["M"] + 1e-5) / (data["M"] + data["F"] + 1e-5) > 0.5
+    data["F1"] = (data["F"] + 1e-5) / (data["M"] + data["F"] + 1e-5) > 0.5
+    return data[["caption", "M1", "F1"]]
+
+
 def calculate_dpic(
     data_obj, processor, dpic_model, mode="non-contextual", threshold=0.5
 ):
@@ -95,18 +105,18 @@ def calculate_dpic(
 
     object_presence_df = data_obj.get_object_presence_df()
     obj_words = object_presence_df.columns.tolist()
-    human_ann = data_obj.getLabelPresence(obj_words, human_ann)
-    model_ann = data_obj.getLabelPresence(obj_words, model_ann)
-    feat = torch.tensor(
-        combined_data["gender"].values, dtype=torch.float, device=device
-    ).reshape(-1, 1)
-    feat = torch.hstack([feat, 1 - feat])
+    human_ann = data_obj.getLabelPresence(gender_words, human_ann)
+    human_ann = processGender(human_ann)
+    model_ann = data_obj.getLabelPresence(gender_words, model_ann)
+    model_ann = processGender(model_ann)
+    feat = combined_data.merge(object_presence_df, on="img_id").iloc[:, 4:].values
+    feat = torch.tensor(feat).type(torch.float)
 
     print("\nPreprocessing Captions...")
 
     # Calculate DPIC Score
     dpic_score = dpic_model.getAmortizedLeakage(
-        feat, human_ann, model_ann, num_trials=15, mask_mode="gender"
+        feat, human_ann, model_ann, num_trials=15, mask_mode="object"
     )
     print(f"\nDPIC Score for mode {mode}, Threshold {threshold}: {dpic_score}")
     return dpic_score
@@ -146,17 +156,13 @@ def main():
     OBJ_WORDS = object_presence_df.columns.tolist()
     OBJ_TOKEN = "<obj>"
     NUM_OBJS = len(OBJ_WORDS)
-
     processor = CaptionProcessor(
         gender_words=gender_words,
-        obj_words=OBJ_WORDS,
+        obj_words=[],
         glove_path=args.glove_path,
         tokenizer="nltk",
         gender_token=gender_token,
     )
-
-    object_presence_df = data_obj.get_object_presence_df()
-    obj_words = object_presence_df.columns.tolist()
 
     # Initialize DPIC Model
     dpic_model = DPIC(
@@ -168,7 +174,7 @@ def main():
                 "lstm_hidden_size": 256,
                 "lstm_num_layers": 2,
                 "lstm_bidirectional": True,
-                "ann_output_size": 2,
+                "ann_output_size": NUM_OBJS,
                 "num_ann_layers": 5,
                 "ann_numFirst": 64,
             },
@@ -180,7 +186,7 @@ def main():
             "batch_size": 128,
         },
         gender_words=gender_words,
-        obj_words=obj_words,
+        obj_words=OBJ_WORDS,
         gender_token=gender_token,
         obj_token=OBJ_TOKEN,
         glove_path=args.glove_path,

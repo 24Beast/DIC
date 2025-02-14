@@ -370,12 +370,23 @@ if __name__ == "__main__":
     gender = torch.hstack([gender, 1 - gender])
     """
 
+    def processGender(data: pd.DataFrame) -> pd.DataFrame:
+        m_cols = [item for item in data.columns if item in MASCULINE]
+        f_cols = [item for item in data.columns if item in FEMININE]
+        data["M"] = data[m_cols].sum(axis=1)
+        data["F"] = data[f_cols].sum(axis=1)
+        data["M1"] = (data["M"] + 1e-5) / (data["M"] + data["F"] + 1e-5) > 0.5
+        data["F1"] = (data["F"] + 1e-5) / (data["M"] + data["F"] + 1e-5) > 0.5
+        return data[["caption", "M1", "F1"]]
+
     MODE = "object"
     MODE = "gender"
     human_ann = ann_data["caption_human"]
     human_ann = data_obj.getLabelPresence(GENDER_WORDS, human_ann)
+    human_ann = processGender(human_ann)
     model_ann = ann_data["caption_model"]
     model_ann = data_obj.getLabelPresence(GENDER_WORDS, model_ann)
+    model_ann = processGender(model_ann)
     objects = ann_data.merge(object_presence_df, on="img_id").iloc[:, 4:]
     objects = torch.tensor(objects.values).type(torch.float)
 
