@@ -179,7 +179,7 @@ class LIC:
         vals = torch.zeros(num_trials)
         for i in range(num_trials):
             print(f"Working on Trial: {i}")
-            vals[i] = self.calcLeak(feat, data, pred, normalized)
+            vals[i] = self.calcLeak(feat, data, pred, normalized).item()
             print(f"Trial {i} val: {vals[i]}")
         if method == "mean":
             return {

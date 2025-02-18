@@ -200,7 +200,7 @@ def main():
         train_params={
             "learning_rate": 0.01,
             "loss_function": "bce",
-            "epochs": 100,
+            "epochs": 50,
             "batch_size": 1024,
         },
         gender_words=gender_words,

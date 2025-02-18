@@ -190,8 +190,8 @@ def main():
         train_params={
             "learning_rate": 0.01,
             "loss_function": "bce",
-            "epochs": 100,
-            "batch_size": 128,
+            "epochs": 50,
+            "batch_size": 256,
         },
         gender_words=gender_words,
         obj_words=obj_words,
