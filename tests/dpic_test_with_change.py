@@ -1,15 +1,19 @@
-import argparse
-import torch
-import pandas as pd
+import os
 import sys
-from utils.datacreator import CaptionGenderDataset
-from utils.text import CaptionProcessor
+import torch
+import random
+import argparse
+import numpy as np
+import pandas as pd
 from DPIC import DPIC
+from utils.text import CaptionProcessor
+from utils.datacreator import CaptionGenderDataset
 from attackerModels.NetModel import LSTM_ANN_Model, RNN_ANN_Model
+
+torch.backends.cudnn.deterministic = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-sys.path.append("/home/nshah96/DIC")
 
 # Print GPU details
 print("GPU Available:", torch.cuda.is_available())
@@ -143,7 +147,17 @@ def main():
     parser.add_argument(
         "--bidirectional", action="store_true", help="Use bidirectional LSTM/RNN"
     )
+    parser.add_argument(
+        "--seed",
+        default=0,
+        help="Set random seed for the experiment. Helps ensure reproducability.",
+    )
     args = parser.parse_args()
+
+    # Setting random seed
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     # Initialize objects
     data_obj = CaptionGenderDataset(args.human_path, args.model_path)
@@ -216,9 +230,9 @@ def main():
             {
                 "mode": "non-contextual",
                 "threshold": "N/A",
-                "dpic_score_mean": contextual_dpic["Mean"].item(),
-                "dpic_score_std_dev": contextual_dpic["std"].item(),
-                "Number of Trials": contextual_dpic["num_trials"],
+                "dpic_score_mean": non_contextual_dpic["Mean"].item(),
+                "dpic_score_std_dev": non_contextual_dpic["std"].item(),
+                "Number of Trials": non_contextual_dpic["num_trials"],
             }
         )
 
@@ -238,6 +252,9 @@ def main():
             )
 
     # Save results to CSV
+    output_dir = "/".join(args.output_file.split("/")[:-1])
+    if not (os.path.isdir(output_dir)):
+        os.makedirs(output_dir)
     results_df = pd.DataFrame(results)
     results_df.to_csv(args.output_file, index=False)
     print(f"\nResults saved to {args.output_file}")

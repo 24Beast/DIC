@@ -1,21 +1,19 @@
-# Provide PYTHONPATH = /path/to/root/directory so that the
-# file can find the imported directories and files
-
-import argparse
-from utils.datacreator import CaptionGenderDataset
-from utils.text import CaptionProcessor
-from LIC import LIC
-import torch
-import pandas as pd
-from tqdm import tqdm
-import sys
 import os
+import sys
+import torch
+import random
+import argparse
+import numpy as np
+from LIC import LIC
+import pandas as pd
+from utils.text import CaptionProcessor
+from utils.datacreator import CaptionGenderDataset
 from attackerModels.NetModel import LSTM_ANN_Model
+
+torch.backends.cudnn.deterministic = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-sys.path.append("/home/nshah96/DIC")
-# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 
 print("GPU Available:", torch.cuda.is_available())
 # Print the currently active GPU
@@ -138,7 +136,17 @@ def main():
         choices=["contextual", "non-contextual"],
         help="Choose mode: 'contextual' or 'non-contextual'",
     )
+    parser.add_argument(
+        "--seed",
+        default=0,
+        help="Set random seed for the experiment. Helps ensure reproducability.",
+    )
     args = parser.parse_args()
+
+    # Setting random seed
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     # Initialize objects
     data_obj = CaptionGenderDataset(args.human_path, args.model_path)
@@ -213,6 +221,9 @@ def main():
             )
 
     # Save results to CSV
+    output_dir = "/".join(args.output_file.split("/")[:-1])
+    if not (os.path.isdir(output_dir)):
+        os.makedirs(output_dir)
     results_df = pd.DataFrame(results)
     results_df.to_csv(args.output_file, index=False)
     print(f"\nResults saved to {args.output_file}")
@@ -220,10 +231,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# export PATH=$CONDA_PREFIX/bin:$PATH
-# export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-
-# echo 'export PATH=$CONDA_PREFIX/bin:$PATH' >> ~/.bashrc
-# echo 'export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
-# source ~/.bashrc

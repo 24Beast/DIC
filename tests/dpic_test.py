@@ -1,12 +1,16 @@
 import os
 import sys
 import torch
+import random
 import argparse
+import numpy as np
 import pandas as pd
 from DPIC import DPIC
 from utils.text import CaptionProcessor
 from utils.datacreator import CaptionGenderDataset
 from attackerModels.NetModel import LSTM_ANN_Model
+
+torch.backends.cudnn.deterministic = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -138,7 +142,17 @@ def main():
         choices=["contextual", "non-contextual"],
         help="Choose mode: 'contextual' or 'non-contextual'",
     )
+    parser.add_argument(
+        "--seed",
+        default=0,
+        help="Set random seed for the experiment. Helps ensure reproducability.",
+    )
     args = parser.parse_args()
+
+    # Setting random seed
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     # Initialize objects
     data_obj = CaptionGenderDataset(args.human_path, args.model_path)

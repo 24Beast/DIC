@@ -11,3 +11,4 @@ run_scripts/
 *.txt
 *.sh
 COCO_datagen.py
+slurm_check.py

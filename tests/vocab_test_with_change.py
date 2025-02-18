@@ -1,13 +1,16 @@
-import argparse
-from utils.datacreator import CaptionGenderDataset
-from utils.text import CaptionProcessor
-from LIC import LIC
-import torch
-import pandas as pd
-from tqdm import tqdm
-import sys
 import os
+import sys
+import torch
+import random
+import argparse
+import numpy as np
+import pandas as pd
+from LIC import LIC
+from utils.text import CaptionProcessor
+from utils.datacreator import CaptionGenderDataset
 from attackerModels.NetModel import LSTM_ANN_Model, RNN_ANN_Model
+
+torch.backends.cudnn.deterministic = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -140,7 +143,17 @@ def main():
     parser.add_argument(
         "--bidirectional", action="store_true", help="Use bidirectional LSTM/RNN"
     )
+    parser.add_argument(
+        "--seed",
+        default=0,
+        help="Set random seed for the experiment. Helps ensure reproducability.",
+    )
     args = parser.parse_args()
+
+    # Setting random seed
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     # Initialize objects
     data_obj = CaptionGenderDataset(args.human_path, args.model_path)
@@ -232,6 +245,9 @@ def main():
             )
 
     # Save results to CSV
+    output_dir = "/".join(args.output_file.split("/")[:-1])
+    if not (os.path.isdir(output_dir)):
+        os.makedirs(output_dir)
     results_df = pd.DataFrame(results)
     results_df.to_csv(args.output_file, index=False)
     print(f"\nResults saved to {args.output_file}")
@@ -239,9 +255,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# echo 'export PATH=$CONDA_PREFIX/bin:$PATH' >> ~/.bashrc
-# echo 'export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
-# source ~/.bashrc
-
-# PYTHONPATH=/home/nshah96/DIC python vocab_test_with_change.py --human_path /home/nshah96/DIC/data/gender_obj_cap_mw_entries.pkl --model_path /home/nshah96/DIC/data/gender_val_att2in_cap_mw_entries.pkl --glove_path /home/nshah96/DIC/data/word2vec.6B.100d.txt --output_file /home/nshah96/DIC/results/att2in_lic_non_contextual_scores.csv --mode non-contextual --use_rnn --bidirectional
