@@ -12,3 +12,4 @@ run_scripts/
 *.sh
 COCO_datagen.py
 slurm_check.py
+slurm*
