@@ -107,7 +107,7 @@ class MaskCaptionGenderDataset:
 
 if __name__ == "__main__":
     HUMAN_ANN_PATH = "./bias_data/Human_Ann/gender_obj_cap_mw_entries.pkl"
-    MODEL_ANN_PATH = "./data/captions_fc/fc_no_masking.json"
+    MODEL_ANN_PATH = "./data/captions_fc/fc_box_masking.json"
     data_obj = MaskCaptionGenderDataset(HUMAN_ANN_PATH, MODEL_ANN_PATH)
     human_ann, model_ann = data_obj.getData()
     object_presence_df = data_obj.get_object_presence_df()
