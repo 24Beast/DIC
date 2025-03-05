@@ -245,13 +245,16 @@ class DPIC:
         model_captions: pd.Series,
         human_captions: pd.Series,
         mode: maskModeType = "gender",
+        similarity_threshold=0.5,
+        maskType="contextual",
     ) -> tuple[torch.tensor, torch.tensor]:  # type: ignore
         model_captions = self.capProcessor.maskWords(model_captions, mode=mode)
         human_captions = self.capProcessor.maskWords(human_captions, mode=mode)
         human_captions, model_captions = self.capProcessor.equalize_vocab(
             human_captions,
             model_captions,
-            similarity_threshold=0.1,
+            similarity_threshold=similarity_threshold,
+            maskType=maskType,
         )
         model_vocab = self.capProcessor.build_vocab(model_captions)
         human_vocab = self.capProcessor.build_vocab(human_captions)
@@ -271,12 +274,16 @@ class DPIC:
         apply_bayes: bool = True,
         normalized: bool = True,
         mask_mode: maskModeType = "gender",
+        mask_type="contextual",
+        similarity_threshold: float = 0.5,
     ) -> tuple[torch.tensor, torch.tensor]:
         pred = pred_frame["caption"]
         data = data_frame["caption"]
         pred_objs = pred_frame.drop("caption", axis=1).to_numpy()
         data_objs = data_frame.drop("caption", axis=1).to_numpy()
-        pred, data = self.captionPreprocess(pred, data, mask_mode)
+        pred, data = self.captionPreprocess(
+            pred, data, mask_mode, similarity_threshold, mask_type
+        )
         pred = pred.to(self.device)
         data = data.to(self.device)
         feat = feat.to(self.device)

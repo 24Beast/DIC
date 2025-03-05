@@ -116,7 +116,13 @@ class CaptionProcessor:
             masked_strings.append(" ".join(masked_tokens))
         return masked_strings
 
-    def equalize_vocab(self, human_captions, model_captions, similarity_threshold=0.5):
+    def equalize_vocab(
+        self,
+        human_captions,
+        model_captions,
+        similarity_threshold=0.5,
+        maskType="contextual",
+    ):
         """
         Equalize vocabularies by substituting with GloVe embeddings where possible
         and replacing unmatched tokens with 'unk'.
@@ -145,7 +151,7 @@ class CaptionProcessor:
                 token_vec, corpus_embeddings, dim=1
             )
             max_similarity, best_match_idx = torch.max(similarities, dim=0)
-            if max_similarity >= similarity_threshold:
+            if (max_similarity >= similarity_threshold) and maskType == "contextual":
                 return corpus_tokens[best_match_idx.item()]
             else:
                 return "unk"

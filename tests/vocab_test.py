@@ -106,7 +106,12 @@ def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", thresho
     # Calculate LIC Score
 
     lic_score = lic_model.getAmortizedLeakage(
-        feat, human_ann, model_ann, normalized=False
+        feat,
+        human_ann,
+        model_ann,
+        normalized=False,
+        mask_type=mode,
+        similarity_threshold=threshold,
     )
     print(f"\nLIC Score for mode {mode}, Threshold {threshold}: {lic_score}")
     return lic_score
@@ -192,6 +197,10 @@ def main():
     results = []
     # Calculate LIC based on selected mode
     if args.mode == "non-contextual":
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+
         non_contextual_lic = calculate_lic(
             data_obj, processor, lic_model, mode="non-contextual"
         )
@@ -207,6 +216,10 @@ def main():
 
     elif args.mode == "contextual":
         for threshold in contextual_thresholds:
+            random.seed(args.seed)
+            np.random.seed(args.seed)
+            torch.manual_seed(args.seed)
+
             contextual_lic = calculate_lic(
                 data_obj, processor, lic_model, mode="contextual", threshold=threshold
             )

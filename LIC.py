@@ -150,11 +150,16 @@ class LIC:
         self.attacker_D = model_class(**model_params).to(self.device)
         self.attacker_M = copy.deepcopy(self.attacker_D).to(self.device)
 
-    def captionPreprocess(self, model_captions, human_captions):
+    def captionPreprocess(
+        self, model_captions, human_captions, similarity_thresh=1, mask_type="constant"
+    ):
         model_captions = self.capProcessor.maskWords(model_captions, mode="gender")
         human_captions = self.capProcessor.maskWords(human_captions, mode="gender")
         human_captions, model_captions = self.capProcessor.equalize_vocab(
-            human_captions, model_captions, similarity_threshold=0.5
+            human_captions,
+            model_captions,
+            similarity_threshold=similarity_thresh,
+            maskType=mask_type,
         )
         model_vocab = self.capProcessor.build_vocab(model_captions)
         human_vocab = self.capProcessor.build_vocab(human_captions)
@@ -171,8 +176,10 @@ class LIC:
         num_trials: int = 25,
         method: str = "mean",
         normalized: bool = False,
+        similarity_thresh=1,
+        mask_type="constant",
     ) -> tuple[torch.tensor, torch.tensor]:
-        pred, data = self.captionPreprocess(pred, data)
+        pred, data = self.captionPreprocess(pred, data, similarity_thresh, mask_type)
         pred = pred.to(self.device)
         data = data.to(self.device)
         feat = feat.to(self.device)

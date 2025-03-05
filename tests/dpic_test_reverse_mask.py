@@ -120,7 +120,13 @@ def calculate_dpic(
 
     # Calculate DPIC Score
     dpic_score = dpic_model.getAmortizedLeakage(
-        feat, human_ann, model_ann, num_trials=15, mask_mode="object"
+        feat,
+        human_ann,
+        model_ann,
+        num_trials=15,
+        mask_mode="object",
+        mask_type=mode,
+        similarity_threshold=threshold,
     )
     print(f"\nDPIC Score for mode {mode}, Threshold {threshold}: {dpic_score}")
     return dpic_score
@@ -213,6 +219,10 @@ def main():
 
     # Calculate DPIC based on selected mode
     if args.mode == "non-contextual":
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+
         non_contextual_dpic = calculate_dpic(
             data_obj, processor, dpic_model, mode="non-contextual"
         )
@@ -228,6 +238,10 @@ def main():
 
     elif args.mode == "contextual":
         for threshold in contextual_thresholds:
+            random.seed(args.seed)
+            np.random.seed(args.seed)
+            torch.manual_seed(args.seed)
+
             contextual_dpic = calculate_dpic(
                 data_obj, processor, dpic_model, mode="contextual", threshold=threshold
             )
