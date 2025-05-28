@@ -1,2 +1,2 @@
-# LeakD
-Repository for Directional Leakage
+# DPAC
+Repository for Directional Predictability in Captioning.
