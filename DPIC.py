@@ -387,7 +387,7 @@ if __name__ == "__main__":
         return data[["caption", "M1", "F1"]]
 
     MODE = "object"
-    MODE = "gender"
+    # MODE = "gender"
     human_ann = ann_data["caption_human"]
     human_ann = data_obj.getLabelPresence(GENDER_WORDS, human_ann)
     human_ann = processGender(human_ann)
