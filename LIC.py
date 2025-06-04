@@ -176,10 +176,10 @@ class LIC:
         num_trials: int = 25,
         method: str = "mean",
         normalized: bool = False,
-        similarity_thresh=1,
+        similarity_threshold=1,
         mask_type="constant",
     ) -> tuple[torch.tensor, torch.tensor]:
-        pred, data = self.captionPreprocess(pred, data, similarity_thresh, mask_type)
+        pred, data = self.captionPreprocess(pred, data, similarity_threshold, mask_type)
         pred = pred.to(self.device)
         data = data.to(self.device)
         feat = feat.to(self.device)
