@@ -61,7 +61,7 @@ if use_pipeline:
     image_to_text = pipeline("image-to-text", model=model_name)
     for num, name in enumerate(img_names, 1):
         print(f"\rWorking on img num: {num}/{num_imgs}", end="")
-        file_path = BASE_PATH + name
+        file_path = BASE_PATH + "/" + name
         img_id = int(name.split(".")[0])
         text = image_to_text(file_path)
         pred = text[0]["generated_text"]
@@ -86,7 +86,7 @@ else:
 
         for num, name in enumerate(img_names, 1):
             print(f"\rWorking on img num: {num}/{num_imgs}", end="")
-            file_path = BASE_PATH + name
+            file_path = BASE_PATH + "/" + name
             img_id = int(name.split(".")[0])
             img = Image.open(file_path)
             inputs = processor(img, prompt, return_tensors="pt").to(0, torch.float16)
@@ -108,7 +108,7 @@ else:
 
         for num, name in enumerate(img_names, 1):
             print(f"\rWorking on img num: {num}/{num_imgs}", end="")
-            file_path = BASE_PATH + name
+            file_path = BASE_PATH + "/" + name
             img_id = int(name.split(".")[0])
             img = Image.open(file_path)
             inputs = processor(text=prompt, images=img, return_tensors="pt").to(
