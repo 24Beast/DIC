@@ -255,6 +255,7 @@ class DPIC:
             model_captions,
             similarity_threshold=similarity_threshold,
             maskType=maskType,
+            bidirectional=True,
         )
         model_vocab = self.capProcessor.build_vocab(model_captions)
         human_vocab = self.capProcessor.build_vocab(human_captions)
@@ -263,7 +264,7 @@ class DPIC:
         model_cap = self.capProcessor.tokens_to_numbers(model_vocab, model_captions)
         human_cap = self.capProcessor.tokens_to_numbers(human_vocab, human_captions)
         return model_cap, human_cap
-
+    
     def getAmortizedLeakage(
         self,
         feat: torch.tensor,  # Attribute

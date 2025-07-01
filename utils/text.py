@@ -122,6 +122,7 @@ class CaptionProcessor:
         model_captions,
         similarity_threshold=0.5,
         maskType="contextual",
+        bidirectional=False,
     ):
         """
         Equalize vocabularies by substituting with GloVe embeddings where possible
@@ -161,15 +162,21 @@ class CaptionProcessor:
 
         # Perform substitution while maintaining structure
         machine_corpus = set([token for tokens in model_tokens for token in tokens])
+        human_corpus = set([token for tokens in human_tokens for token in tokens])
 
         equalized_human_captions = [
             " ".join([substitute_token(token, machine_corpus) for token in tokens])
             for tokens in tqdm(human_tokens, desc="Equalizing Human Vocab")
         ]
-        equalized_model_captions = [" ".join(tokens) for tokens in model_tokens]
+        if bidirectional:
+            equalized_model_captions = [
+                " ".join([substitute_token(token, human_corpus) for token in tokens])
+                for tokens in tqdm(model_tokens, desc="Equalizing Model Vocab")
+            ]
+        else:
+            equalized_model_captions = [" ".join(tokens) for tokens in model_tokens]
 
         return equalized_human_captions, equalized_model_captions
-
 
 # CLI
 def get_parser():
