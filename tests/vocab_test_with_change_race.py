@@ -87,7 +87,9 @@ def main():
         help="Path to GloVe embeddings in word2vec format",
     )
     parser.add_argument(
-        "--output_file", default="lic_scores_race.csv", help="Output file to save LIC scores"
+        "--output_file",
+        default="lic_scores_race.csv",
+        help="Output file to save LIC scores",
     )
     parser.add_argument(
         "--mode",
