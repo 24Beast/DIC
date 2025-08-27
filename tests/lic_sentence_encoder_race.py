@@ -7,7 +7,7 @@ import numpy as np
 from LIC import LIC
 import pandas as pd
 from utils.text import CaptionProcessor
-from utils.datacreator import CaptionGenderDataset
+from utils.datacreator_race import CaptionRaceDataset
 from attackerModels import simpleDenseModel
 
 torch.backends.cudnn.deterministic = True
@@ -25,63 +25,21 @@ if torch.cuda.is_available():
 # Define thresholds for contextual LIC
 contextual_thresholds = [round(x * 0.05, 2) for x in range(11, 16)]
 
-# Step 1: Define Gender Words and Token
-masculine = [
-    "man",
-    "men",
-    "male",
-    "father",
-    "gentleman",
-    "gentlemen",
-    "boy",
-    "boys",
-    "uncle",
-    "husband",
-    "actor",
-    "prince",
-    "waiter",
-    "son",
-    "he",
-    "his",
-    "him",
-    "himself",
-    "brother",
-    "brothers",
-    "guy",
-    "guys",
-    "emperor",
-    "emperors",
-    "dude",
-    "dudes",
-    "cowboy",
+# Step 1: Define Race Words and Token
+light_race = ["white", "caucasian"]
+dark_race = [
+    "black",
+    "african",
+    "asian",
+    "latino",
+    "latina",
+    "latinx",
+    "hispanic",
+    "native",
+    "indigenous",
 ]
-feminine = [
-    "woman",
-    "women",
-    "female",
-    "lady",
-    "ladies",
-    "mother",
-    "girl",
-    "girls",
-    "aunt",
-    "wife",
-    "actress",
-    "princess",
-    "waitress",
-    "daughter",
-    "she",
-    "her",
-    "hers",
-    "herself",
-    "sister",
-    "sisters",
-    "queen",
-    "queens",
-    "pregnant",
-]
-gender_words = masculine + feminine
-gender_token = "gender"
+race_words = light_race + dark_race
+race_token = "race"
 
 
 def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", threshold=0.5):
@@ -93,18 +51,25 @@ def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", thresho
     print("\nLoaded Combined Dataset:")
     print(f"Total Samples: {len(combined_data)}")
 
-    # Extract Features
+    # Extract Features - Convert 3-category race to one-hot encoding
+    race_values = combined_data["race"].values
+
+    # Create one-hot encoding for 3 race categories (Light=0, Dark=1, Both=2)
+    feat = torch.zeros(len(race_values), 3, dtype=torch.float, device=device)
+    for i, race_val in enumerate(race_values):
+        if race_val == 0:  # Light
+            feat[i, 0] = 1
+        elif race_val == 1:  # Dark
+            feat[i, 1] = 1
+        elif race_val == 2:  # Both
+            feat[i, 2] = 1
+
     human_ann = combined_data["caption_human"]
     model_ann = combined_data["caption_model"]
-    feat = torch.tensor(
-        combined_data["gender"].values, dtype=torch.float, device=device
-    ).reshape(-1, 1)
-    feat = torch.hstack([feat, 1 - feat])
 
     print("\nPreprocessing Captions...")
 
     # Calculate LIC Score
-
     lic_score = lic_model.getAmortizedLeakage(
         feat,
         human_ann,
@@ -119,7 +84,7 @@ def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", thresho
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Test LIC and Contextual LIC calculations"
+        description="Test LIC and Contextual LIC calculations for race bias"
     )
     parser.add_argument(
         "--human_path", required=True, help="Path to human annotations pickle file"
@@ -133,7 +98,9 @@ def main():
         help="Path to GloVe embeddings in word2vec format",
     )
     parser.add_argument(
-        "--output_file", default="lic_scores.csv", help="Output file to save LIC scores"
+        "--output_file",
+        default="lic_scores_race.csv",
+        help="Output file to save LIC scores",
     )
     parser.add_argument(
         "--mode",
@@ -159,19 +126,19 @@ def main():
     torch.manual_seed(args.seed)
 
     # Initialize objects
-    data_obj = CaptionGenderDataset(args.human_path, args.model_path)
+    data_obj = CaptionRaceDataset(args.human_path, args.model_path)
     processor = CaptionProcessor(
-        gender_words=gender_words,
+        gender_words=race_words,
         obj_words=[],
         glove_path=args.glove_path,
         tokenizer="nltk",
-        gender_token=gender_token,
+        gender_token=race_token,
     )
     model_params = {
         "attacker_class": simpleDenseModel,
         "embedding_model": args.embed_model,
         "attacker_params": {
-            "output_dims": 2,
+            "output_dims": 3,  # Changed from 2 to 3 for race categories
             "num_layers": 3,
             "numFirst": 128,
         },
@@ -186,9 +153,9 @@ def main():
             "epochs": 50,
             "batch_size": 1024,
         },
-        gender_words=gender_words,
+        gender_words=race_words,
         obj_words=[],
-        gender_token=gender_token,
+        gender_token=race_token,
         obj_token="obj",
         glove_path=args.glove_path,
         device=device,

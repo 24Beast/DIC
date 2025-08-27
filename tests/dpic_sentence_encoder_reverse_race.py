@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from DPIC import DPIC
 from attackerModels import simpleDenseModel
-from utils.datacreator import CaptionGenderDataset
+from utils.datacreator_race import CaptionRaceDataset
 
 torch.backends.cudnn.deterministic = True
 
@@ -24,73 +24,52 @@ if torch.cuda.is_available():
 # Define thresholds for contextual DPIC
 contextual_thresholds = [round(x * 0.05, 2) for x in range(11, 16)]
 
-# Step 1: Define Gender Words and Token
-masculine = [
-    "man",
-    "men",
-    "male",
-    "father",
-    "gentleman",
-    "gentlemen",
-    "boy",
-    "boys",
-    "uncle",
-    "husband",
-    "actor",
-    "prince",
-    "waiter",
-    "son",
-    "he",
-    "his",
-    "him",
-    "himself",
-    "brother",
-    "brothers",
-    "guy",
-    "guys",
-    "emperor",
-    "emperors",
-    "dude",
-    "dudes",
-    "cowboy",
+# Step 1: Define Race Words and Token
+light_race = ["white", "caucasian"]
+dark_race = [
+    "black",
+    "african",
+    "asian",
+    "latino",
+    "latina",
+    "latinx",
+    "hispanic",
+    "native",
+    "indigenous",
 ]
-feminine = [
-    "woman",
-    "women",
-    "female",
-    "lady",
-    "ladies",
-    "mother",
-    "girl",
-    "girls",
-    "aunt",
-    "wife",
-    "actress",
-    "princess",
-    "waitress",
-    "daughter",
-    "she",
-    "her",
-    "hers",
-    "herself",
-    "sister",
-    "sisters",
-    "queen",
-    "queens",
-    "pregnant",
-]
-gender_words = masculine + feminine
-gender_token = "gender"
+race_words = light_race + dark_race
+race_token = "race"
 
 
-def processGender(data: pd.DataFrame) -> pd.DataFrame:
-    m_cols = [item for item in data.columns if item in masculine]
-    f_cols = [item for item in data.columns if item in feminine]
-    data["M"] = data[m_cols].sum(axis=1)
-    data["F"] = data[f_cols].sum(axis=1)
-    data["M1"] = (data["M"] + 1e-5) / (data["M"] + data["F"] + 1e-5) > 0.5
-    data["F1"] = (data["F"] + 1e-5) / (data["M"] + data["F"] + 1e-5) > 0.5
-    return data[["caption", "M1", "F1"]]
+def processRace(data: pd.DataFrame) -> pd.DataFrame:
+    light_cols = [item for item in data.columns if item in light_race]
+    dark_cols = [item for item in data.columns if item in dark_race]
+
+    data["LIGHT"] = data[light_cols].sum(axis=1)
+    data["DARK"] = data[dark_cols].sum(axis=1)
+
+    # Determine race category based on presence of light/dark words
+    def determine_race_category(row):
+        has_light = row["LIGHT"] > 0
+        has_dark = row["DARK"] > 0
+
+        if has_light and has_dark:
+            return "Both"
+        elif has_light:
+            return "Light"
+        elif has_dark:
+            return "Dark"
+        else:
+            return "None"
+
+    data["RACE_CATEGORY"] = data.apply(determine_race_category, axis=1)
+
+    # Create binary columns for each category (matching datacreator_race.py categories)
+    data["LIGHT"] = data["RACE_CATEGORY"] == "Light"
+    data["DARK"] = data["RACE_CATEGORY"] == "Dark"
+    data["BOTH"] = data["RACE_CATEGORY"] == "Both"
+
+    return data[["caption", "LIGHT", "DARK", "BOTH"]]
 
 
 def calculate_dpic(data_obj, dpic_model, mode="non-contextual", threshold=0.5):
@@ -106,10 +85,10 @@ def calculate_dpic(data_obj, dpic_model, mode="non-contextual", threshold=0.5):
 
     object_presence_df = data_obj.get_object_presence_df()
     obj_words = object_presence_df.columns.tolist()
-    human_ann = data_obj.getLabelPresence(gender_words, human_ann)
-    human_ann = processGender(human_ann)
-    model_ann = data_obj.getLabelPresence(gender_words, model_ann)
-    model_ann = processGender(model_ann)
+    human_ann = data_obj.getLabelPresence(race_words, human_ann)
+    human_ann = processRace(human_ann)
+    model_ann = data_obj.getLabelPresence(race_words, model_ann)
+    model_ann = processRace(model_ann)
     feat = combined_data.merge(object_presence_df, on="img_id").iloc[:, 4:].values
     feat = torch.tensor(feat).type(torch.float)
 
@@ -125,7 +104,7 @@ def calculate_dpic(data_obj, dpic_model, mode="non-contextual", threshold=0.5):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Test DPIC and Contextual DPIC calculations"
+        description="Test DPIC and Contextual DPIC calculations for race bias"
     )
     parser.add_argument(
         "--human_path", required=True, help="Path to human annotations pickle file"
@@ -140,7 +119,7 @@ def main():
     )
     parser.add_argument(
         "--output_file",
-        default="dpic_scores.csv",
+        default="dpic_scores_race.csv",
         help="Output file to save DPIC scores",
     )
     parser.add_argument(
@@ -167,7 +146,7 @@ def main():
     torch.manual_seed(args.seed)
 
     # Initialize objects
-    data_obj = CaptionGenderDataset(args.human_path, args.model_path)
+    data_obj = CaptionRaceDataset(args.human_path, args.model_path)
     object_presence_df = data_obj.get_object_presence_df()
     OBJ_WORDS = object_presence_df.columns.tolist()
     OBJ_TOKEN = "<obj>"
@@ -192,9 +171,9 @@ def main():
             "epochs": 50,
             "batch_size": 256,
         },
-        gender_words=gender_words,
+        gender_words=race_words,
         obj_words=OBJ_WORDS,
-        gender_token=gender_token,
+        gender_token=race_token,
         obj_token=OBJ_TOKEN,
         glove_path=args.glove_path,
         device=device,
