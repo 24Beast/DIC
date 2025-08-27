@@ -26,8 +26,18 @@ if torch.cuda.is_available():
 contextual_thresholds = [round(x * 0.05, 2) for x in range(11, 16)]
 
 # Step 1: Define Race Words and Token
-light_race = ['white', 'caucasian']
-dark_race = ['black', 'african', 'asian', 'latino', 'latina', 'latinx', 'hispanic', 'native', 'indigenous']
+light_race = ["white", "caucasian"]
+dark_race = [
+    "black",
+    "african",
+    "asian",
+    "latino",
+    "latina",
+    "latinx",
+    "hispanic",
+    "native",
+    "indigenous",
+]
 race_words = light_race + dark_race
 race_token = "race"
 
@@ -35,15 +45,15 @@ race_token = "race"
 def processRace(data: pd.DataFrame) -> pd.DataFrame:
     light_cols = [item for item in data.columns if item in light_race]
     dark_cols = [item for item in data.columns if item in dark_race]
-    
+
     data["LIGHT"] = data[light_cols].sum(axis=1)
     data["DARK"] = data[dark_cols].sum(axis=1)
-    
+
     # Determine race category based on presence of light/dark words
     def determine_race_category(row):
         has_light = row["LIGHT"] > 0
         has_dark = row["DARK"] > 0
-        
+
         if has_light and has_dark:
             return "Both"
         elif has_light:
@@ -52,14 +62,14 @@ def processRace(data: pd.DataFrame) -> pd.DataFrame:
             return "Dark"
         else:
             return "None"
-    
+
     data["RACE_CATEGORY"] = data.apply(determine_race_category, axis=1)
-    
+
     # Create binary columns for each category (matching datacreator_race.py categories)
-    data["LIGHT"] = (data["RACE_CATEGORY"] == "Light")
-    data["DARK"] = (data["RACE_CATEGORY"] == "Dark") 
-    data["BOTH"] = (data["RACE_CATEGORY"] == "Both")
-    
+    data["LIGHT"] = data["RACE_CATEGORY"] == "Light"
+    data["DARK"] = data["RACE_CATEGORY"] == "Dark"
+    data["BOTH"] = data["RACE_CATEGORY"] == "Both"
+
     return data[["caption", "LIGHT", "DARK", "BOTH"]]
 
 
