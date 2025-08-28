@@ -5,7 +5,7 @@ import random
 import argparse
 import numpy as np
 import pandas as pd
-from LIC import LIC
+from DPIC import DPIC
 from utils.text import CaptionProcessor
 from utils.datacreator_race import CaptionRaceDataset
 from attackerModels.NetModel import LSTM_ANN_Model, RNN_ANN_Model
@@ -14,23 +14,20 @@ torch.backends.cudnn.deterministic = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-sys.path.append("/home/nshah96/DIC")
-# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 
+# Print GPU details
 print("GPU Available:", torch.cuda.is_available())
-# Print the currently active GPU
 if torch.cuda.is_available():
     print("Current GPU:", torch.cuda.get_device_name(torch.cuda.current_device()))
     print("GPU Device Index:", torch.cuda.current_device())
     print("Total GPUs:", torch.cuda.device_count())
 
-# Define thresholds for contextual LIC
+# Define thresholds for contextual DPIC
 contextual_thresholds = [round(x * 0.05, 2) for x in range(11, 16)]
 
 # Step 1: Define Race Words and Token
-race_words = [
-    "white",
-    "caucasian",
+light_race = ["white", "caucasian"]
+dark_race = [
     "black",
     "african",
     "asian",
@@ -41,39 +38,76 @@ race_words = [
     "native",
     "indigenous",
 ]
+race_words = light_race + dark_race
 race_token = "race"
 
 
-def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", threshold=0.5):
+def processRace(data: pd.DataFrame) -> pd.DataFrame:
+    light_cols = [item for item in data.columns if item in light_race]
+    dark_cols = [item for item in data.columns if item in dark_race]
+
+    data["LIGHT"] = data[light_cols].sum(axis=1)
+    data["DARK"] = data[dark_cols].sum(axis=1)
+
+    # Determine race category based on presence of light/dark words
+    def determine_race_category(row):
+        has_light = row["LIGHT"] > 0
+        has_dark = row["DARK"] > 0
+
+        if has_light and has_dark:
+            return "Both"
+        elif has_light:
+            return "Light"
+        elif has_dark:
+            return "Dark"
+        else:
+            return "None"
+
+    data["RACE_CATEGORY"] = data.apply(determine_race_category, axis=1)
+
+    # Create binary columns for each category (matching datacreator_race.py categories)
+    data["LIGHT"] = data["RACE_CATEGORY"] == "Light"
+    data["DARK"] = data["RACE_CATEGORY"] == "Dark"
+    data["BOTH"] = data["RACE_CATEGORY"] == "Both"
+
+    return data[["caption", "LIGHT", "DARK", "BOTH"]]
+
+
+def calculate_dpic(
+    data_obj, processor, dpic_model, mode="non-contextual", threshold=0.5
+):
     print(
-        f"\nCalculating LIC for mode: {mode}, Threshold: {threshold if threshold else 'N/A'}"
+        f"\nCalculating DPIC for mode: {mode}, Threshold: {threshold if threshold else 'N/A'}"
     )
 
     combined_data = data_obj.getDataCombined()
+    human_ann = combined_data["caption_human"]
+    model_ann = combined_data["caption_model"]
     print("\nLoaded Combined Dataset:")
     print(f"Total Samples: {len(combined_data)}")
 
-    # Extract Features
-    human_ann = combined_data["caption_human"]
-    model_ann = combined_data["caption_model"]
-    feat = torch.tensor(
-        combined_data["race"].values, dtype=torch.float, device=device
-    ).reshape(-1, 1)
+    object_presence_df = data_obj.get_object_presence_df()
+    obj_words = object_presence_df.columns.tolist()
+    human_ann = data_obj.getLabelPresence(race_words, human_ann)
+    human_ann = processRace(human_ann)
+    model_ann = data_obj.getLabelPresence(race_words, model_ann)
+    model_ann = processRace(model_ann)
+    feat = combined_data.merge(object_presence_df, on="img_id").iloc[:, 4:].values
+    feat = torch.tensor(feat).type(torch.float)
 
     print("\nPreprocessing Captions...")
 
-    # Calculate LIC Score
-
-    lic_score = lic_model.getAmortizedLeakage(
-        feat, human_ann, model_ann, normalized=False
+    # Calculate DPIC Score
+    dpic_score = dpic_model.getAmortizedLeakage(
+        feat, human_ann, model_ann, num_trials=15, mask_mode="object"
     )
-    print(f"\nLIC Score for mode {mode}, Threshold {threshold}: {lic_score}")
-    return lic_score
+    print(f"\nDPIC Score for mode {mode}, Threshold {threshold}: {dpic_score}")
+    return dpic_score
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Test LIC and Contextual LIC calculations for race"
+        description="Test DPIC and Contextual DPIC calculations for race bias"
     )
     parser.add_argument(
         "--human_path", required=True, help="Path to human annotations pickle file"
@@ -88,8 +122,8 @@ def main():
     )
     parser.add_argument(
         "--output_file",
-        default="lic_scores_race.csv",
-        help="Output file to save LIC scores",
+        default="dpic_scores_race.csv",
+        help="Output file to save DPIC scores",
     )
     parser.add_argument(
         "--mode",
@@ -117,6 +151,10 @@ def main():
 
     # Initialize objects
     data_obj = CaptionRaceDataset(args.human_path, args.model_path)
+    object_presence_df = data_obj.get_object_presence_df()
+    OBJ_WORDS = object_presence_df.columns.tolist()
+    OBJ_TOKEN = "<obj>"
+    NUM_OBJS = len(OBJ_WORDS)
     processor = CaptionProcessor(
         gender_words=race_words,
         obj_words=[],
@@ -133,11 +171,10 @@ def main():
             "rnn_hidden_size": 256,
             "rnn_num_layers": 2,
             "rnn_bidirectional": args.bidirectional,
-            "ann_output_size": 1,
+            "ann_output_size": NUM_OBJS,
             "num_ann_layers": 5,
             "ann_numFirst": 64,
         }
-
     else:
         model_type = LSTM_ANN_Model
         model_params = {
@@ -146,13 +183,13 @@ def main():
             "lstm_hidden_size": 256,
             "lstm_num_layers": 2,
             "lstm_bidirectional": args.bidirectional,
-            "ann_output_size": 1,
+            "ann_output_size": NUM_OBJS,
             "num_ann_layers": 5,
             "ann_numFirst": 64,
         }
 
-    # Initialize LIC
-    lic_model = LIC(
+    # Initialize DPIC Model
+    dpic_model = DPIC(
         model_params={
             "attacker_class": model_type,
             "attacker_params": model_params,
@@ -161,12 +198,12 @@ def main():
             "learning_rate": 0.01,
             "loss_function": "bce",
             "epochs": 50,
-            "batch_size": 1024,
+            "batch_size": 256,
         },
         gender_words=race_words,
-        obj_words=[],
+        obj_words=OBJ_WORDS,
         gender_token=race_token,
-        obj_token="obj",
+        obj_token=OBJ_TOKEN,
         glove_path=args.glove_path,
         device=device,
         eval_metric="bce",
@@ -175,32 +212,33 @@ def main():
     # Initialize results storage
     results = []
 
+    # Calculate DPIC based on selected mode
     if args.mode == "non-contextual":
-        non_contextual_lic = calculate_lic(
-            data_obj, processor, lic_model, mode="non-contextual"
+        non_contextual_dpic = calculate_dpic(
+            data_obj, processor, dpic_model, mode="non-contextual"
         )
         results.append(
             {
                 "mode": "non-contextual",
                 "threshold": "N/A",
-                "lic_score_mean": non_contextual_lic["Mean"].item(),
-                "lic_score_std_dev": non_contextual_lic["std"].item(),
-                "Number of Trials": non_contextual_lic["num_trials"],
+                "dpic_score_mean": non_contextual_dpic["Mean"].item(),
+                "dpic_score_std_dev": non_contextual_dpic["std"].item(),
+                "Number of Trials": non_contextual_dpic["num_trials"],
             }
         )
 
     elif args.mode == "contextual":
         for threshold in contextual_thresholds:
-            contextual_lic = calculate_lic(
-                data_obj, processor, lic_model, mode="contextual", threshold=threshold
+            contextual_dpic = calculate_dpic(
+                data_obj, processor, dpic_model, mode="contextual", threshold=threshold
             )
             results.append(
                 {
                     "mode": "contextual",
                     "threshold": threshold,
-                    "lic_score_mean": contextual_lic["Mean"].item(),
-                    "lic_score_std_dev": contextual_lic["std"].item(),
-                    "Number of Trials": contextual_lic["num_trials"],
+                    "dpic_score_mean": contextual_dpic["Mean"].item(),
+                    "dpic_score_std_dev": contextual_dpic["std"].item(),
+                    "Number of Trials": contextual_dpic["num_trials"],
                 }
             )
 

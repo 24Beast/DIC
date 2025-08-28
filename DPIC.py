@@ -264,7 +264,7 @@ class DPIC:
         model_cap = self.capProcessor.tokens_to_numbers(model_vocab, model_captions)
         human_cap = self.capProcessor.tokens_to_numbers(human_vocab, human_captions)
         return model_cap, human_cap
-    
+
     def getAmortizedLeakage(
         self,
         feat: torch.tensor,  # Attribute

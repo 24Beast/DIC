@@ -4,18 +4,16 @@ import torch
 import random
 import argparse
 import numpy as np
-import pandas as pd
 from LIC import LIC
+import pandas as pd
 from utils.text import CaptionProcessor
 from utils.datacreator_race import CaptionRaceDataset
-from attackerModels.NetModel import LSTM_ANN_Model, RNN_ANN_Model
+from attackerModels import simpleDenseModel
 
 torch.backends.cudnn.deterministic = True
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-sys.path.append("/home/nshah96/DIC")
-# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 
 print("GPU Available:", torch.cuda.is_available())
 # Print the currently active GPU
@@ -28,9 +26,8 @@ if torch.cuda.is_available():
 contextual_thresholds = [round(x * 0.05, 2) for x in range(11, 16)]
 
 # Step 1: Define Race Words and Token
-race_words = [
-    "white",
-    "caucasian",
+light_race = ["white", "caucasian"]
+dark_race = [
     "black",
     "african",
     "asian",
@@ -41,6 +38,7 @@ race_words = [
     "native",
     "indigenous",
 ]
+race_words = light_race + dark_race
 race_token = "race"
 
 
@@ -53,19 +51,32 @@ def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", thresho
     print("\nLoaded Combined Dataset:")
     print(f"Total Samples: {len(combined_data)}")
 
-    # Extract Features
+    # Extract Features - Convert 3-category race to one-hot encoding
+    race_values = combined_data["race"].values
+
+    # Create one-hot encoding for 3 race categories (Light=0, Dark=1, Both=2)
+    feat = torch.zeros(len(race_values), 3, dtype=torch.float, device=device)
+    for i, race_val in enumerate(race_values):
+        if race_val == 0:  # Light
+            feat[i, 0] = 1
+        elif race_val == 1:  # Dark
+            feat[i, 1] = 1
+        elif race_val == 2:  # Both
+            feat[i, 2] = 1
+
     human_ann = combined_data["caption_human"]
     model_ann = combined_data["caption_model"]
-    feat = torch.tensor(
-        combined_data["race"].values, dtype=torch.float, device=device
-    ).reshape(-1, 1)
 
     print("\nPreprocessing Captions...")
 
     # Calculate LIC Score
-
     lic_score = lic_model.getAmortizedLeakage(
-        feat, human_ann, model_ann, normalized=False
+        feat,
+        human_ann,
+        model_ann,
+        normalized=False,
+        mask_type=mode,
+        similarity_threshold=threshold,
     )
     print(f"\nLIC Score for mode {mode}, Threshold {threshold}: {lic_score}")
     return lic_score
@@ -73,7 +84,7 @@ def calculate_lic(data_obj, processor, lic_model, mode="non-contextual", thresho
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Test LIC and Contextual LIC calculations for race"
+        description="Test LIC and Contextual LIC calculations for race bias"
     )
     parser.add_argument(
         "--human_path", required=True, help="Path to human annotations pickle file"
@@ -93,15 +104,14 @@ def main():
     )
     parser.add_argument(
         "--mode",
-        required=True,
+        default="non-contextual",
         choices=["contextual", "non-contextual"],
         help="Choose mode: 'contextual' or 'non-contextual'",
     )
     parser.add_argument(
-        "--use_rnn", action="store_true", help="Use RNN instead of LSTM"
-    )
-    parser.add_argument(
-        "--bidirectional", action="store_true", help="Use bidirectional LSTM/RNN"
+        "--embed_model",
+        default="all-MiniLM-L6-v2",
+        help="sentence embedding model to be used.",
     )
     parser.add_argument(
         "--seed",
@@ -124,39 +134,19 @@ def main():
         tokenizer="nltk",
         gender_token=race_token,
     )
-
-    if args.use_rnn:
-        model_type = RNN_ANN_Model
-        model_params = {
-            "embedding_dim": 250,
-            "pad_idx": 0,
-            "rnn_hidden_size": 256,
-            "rnn_num_layers": 2,
-            "rnn_bidirectional": args.bidirectional,
-            "ann_output_size": 1,
-            "num_ann_layers": 5,
-            "ann_numFirst": 64,
-        }
-
-    else:
-        model_type = LSTM_ANN_Model
-        model_params = {
-            "embedding_dim": 250,
-            "pad_idx": 0,
-            "lstm_hidden_size": 256,
-            "lstm_num_layers": 2,
-            "lstm_bidirectional": args.bidirectional,
-            "ann_output_size": 1,
-            "num_ann_layers": 5,
-            "ann_numFirst": 64,
-        }
+    model_params = {
+        "attacker_class": simpleDenseModel,
+        "embedding_model": args.embed_model,
+        "attacker_params": {
+            "output_dims": 3,  # Changed from 2 to 3 for race categories
+            "num_layers": 3,
+            "numFirst": 128,
+        },
+    }
 
     # Initialize LIC
     lic_model = LIC(
-        model_params={
-            "attacker_class": model_type,
-            "attacker_params": model_params,
-        },
+        model_params=model_params,
         train_params={
             "learning_rate": 0.01,
             "loss_function": "bce",
@@ -174,8 +164,12 @@ def main():
 
     # Initialize results storage
     results = []
-
+    # Calculate LIC based on selected mode
     if args.mode == "non-contextual":
+        random.seed(args.seed)
+        np.random.seed(args.seed)
+        torch.manual_seed(args.seed)
+
         non_contextual_lic = calculate_lic(
             data_obj, processor, lic_model, mode="non-contextual"
         )
@@ -185,12 +179,16 @@ def main():
                 "threshold": "N/A",
                 "lic_score_mean": non_contextual_lic["Mean"].item(),
                 "lic_score_std_dev": non_contextual_lic["std"].item(),
-                "Number of Trials": non_contextual_lic["num_trials"],
+                "num_trials": non_contextual_lic["num_trials"],
             }
         )
 
     elif args.mode == "contextual":
         for threshold in contextual_thresholds:
+            random.seed(args.seed)
+            np.random.seed(args.seed)
+            torch.manual_seed(args.seed)
+
             contextual_lic = calculate_lic(
                 data_obj, processor, lic_model, mode="contextual", threshold=threshold
             )
@@ -200,7 +198,7 @@ def main():
                     "threshold": threshold,
                     "lic_score_mean": contextual_lic["Mean"].item(),
                     "lic_score_std_dev": contextual_lic["std"].item(),
-                    "Number of Trials": contextual_lic["num_trials"],
+                    "num_trials": contextual_lic["num_trials"],
                 }
             )
 

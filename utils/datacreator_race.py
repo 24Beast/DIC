@@ -66,9 +66,9 @@ class CaptionRaceDataset:
             objs, columns=self.mlb.classes_, index=self.attribute_data["img_id"]
         )
         self.object_presence_df.fillna(0, inplace=True)
-        race_mapping = {"Light": 0, "Dark": 1, "Unsure": 2, "Both": 3, "": 4}
+        race_mapping = {"Light": 0, "Dark": 1, "Both": 2, "": 2}
         self.attribute_data["race"] = self.attribute_data["race"].apply(
-            lambda x: race_mapping.get(x, 4)  # Default to 4 for unknown values
+            lambda x: race_mapping.get(x, 2)  # Default to 2 for unknown values
         )
 
     def getData(self) -> list[pd.DataFrame]:

@@ -178,6 +178,7 @@ class CaptionProcessor:
 
         return equalized_human_captions, equalized_model_captions
 
+
 # CLI
 def get_parser():
     parser = argparse.ArgumentParser(description="CaptionProcessor CLI")
