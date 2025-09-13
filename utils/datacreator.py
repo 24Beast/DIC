@@ -105,10 +105,12 @@ class CaptionGenderDataset:
 
 if __name__ == "__main__":
     HUMAN_ANN_PATH = "./bias_data/Human_Ann/gender_obj_cap_mw_entries.pkl"
-    MODEL_ANN_PATH = "./bias_data/Transformer/gender_val_transformer_cap_mw_entries.pkl"
+    # MODEL_ANN_PATH = "./bias_data/Transformer/gender_val_transformer_cap_mw_entries.pkl"
+    MODEL_ANN_PATH = "./data/new_models/no_masking/vit_gpt2.pkl"
     data_obj = CaptionGenderDataset(HUMAN_ANN_PATH, MODEL_ANN_PATH)
     human_ann, model_ann = data_obj.getData()
     object_presence_df = data_obj.get_object_presence_df()
+    OBJ_WORDS = object_presence_df.columns.tolist()
 
     print("Human Annotations Sample:\n", human_ann.head())
     print("Model Annotations Sample:\n", model_ann.head())
